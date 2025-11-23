@@ -15,7 +15,7 @@
 #include <XPT2046_Touchscreen.h>
 #endif
 #ifdef TOUCH_TYPE_CAPACITIVE
-#include "CST820.h"
+#include "drivers/CST820.h"
 #endif
 #include "RGBledDriver.h"
 

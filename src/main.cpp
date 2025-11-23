@@ -14,8 +14,8 @@
 // Import the main interface code for the UI.
 #include "MainInterface.h"
 
-#include <LovyanGFX.hpp> // Display library: https://github.com/lovyan03/LovyanGFX
-#include "CST820.h"      // Custom I2C driver for CST820 capacitive touchscreen
+#include <LovyanGFX.hpp>    // Display library: https://github.com/lovyan03/LovyanGFX
+#include "drivers/CST820.h" // Custom I2C driver for CST820 capacitive touchscreen
 #include "PeriodicScheduler.h"
 #include "SensorManager.h"
 #include <DHT.h>
