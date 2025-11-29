@@ -7,15 +7,6 @@
 #ifndef TEMPLATE_CODE_H
 #define TEMPLATE_CODE_H
 
-/**
- * Last updated: 2nd Feb 2025
- * By: Daniel Potter
- * Description: This file contains the template code for setting up the screen and touch interface.
- */
-
-#ifndef TEMPLATE_CODE_H
-#define TEMPLATE_CODE_H
-
 #include <Arduino.h>
 #include <SPI.h>
 #include <lvgl.h>
