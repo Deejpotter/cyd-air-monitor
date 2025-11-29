@@ -44,10 +44,12 @@ bool EnvSensor::performRead()
 
   // Wait for sensor response: LOW ~80us
   unsigned long t = pulseIn(pin, LOW, timeout);
-  if (t == 0) return false;
+  if (t == 0)
+    return false;
   // Wait for HIGH ~80us
   t = pulseIn(pin, HIGH, timeout);
-  if (t == 0) return false;
+  if (t == 0)
+    return false;
 
   uint8_t data[5] = {0, 0, 0, 0, 0};
 
@@ -55,10 +57,12 @@ bool EnvSensor::performRead()
   {
     // low 50us
     t = pulseIn(pin, LOW, timeout);
-    if (t == 0) return false;
+    if (t == 0)
+      return false;
     // high: length determines 0 or 1
     unsigned long len = pulseIn(pin, HIGH, timeout);
-    if (len == 0) return false;
+    if (len == 0)
+      return false;
     int byteIndex = i / 8;
     data[byteIndex] <<= 1;
     if (len > 50) // threshold; 26-28us -> 0, ~70us -> 1. Use 50us cutoff
