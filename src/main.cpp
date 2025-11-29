@@ -7,6 +7,7 @@
 
 #include "TemplateCode.h"
 #include "MainInterface.h"
+#include "EnvSensor.h"
 
 TemplateCode &templateCode = TemplateCode::getInstance();
 MainInterface mainInterface;
@@ -23,6 +24,11 @@ void setup()
     while (true)
       delay(1000);
   }
+
+  // Initialize DHT11 on pin 21 (GPIO21)
+  envSensor.begin(21);
+  // prime a read
+  envSensor.read();
 
   // Initialize UI
   mainInterface.init();

@@ -11,6 +11,7 @@
 
 #include "MainInterface.h"
 #include <stdio.h>
+#include "EnvSensor.h"
 
 /**
  * Constructor: Initializes all UI element pointers to nullptr
@@ -102,7 +103,7 @@ void MainInterface::createHeader()
   // Info + FPS labels below header
   infoLabel = lv_label_create(mainScreen);
   lv_obj_set_style_text_color(infoLabel, lv_color_hex(0xA0A0A0), 0);
-  lv_label_set_text(infoLabel, "Touch: --,-  state: idle");
+  lv_label_set_text(infoLabel, "Temp: --°C  Hum: --%  Touch: --,-");
   lv_obj_align(infoLabel, LV_ALIGN_TOP_LEFT, 4, 48);
 
   fpsLabel = lv_label_create(mainScreen);
@@ -207,6 +208,29 @@ void MainInterface::update()
   lv_obj_set_pos(bouncer, bx, by);
 
   updateFPS();
+
+  // Update environment sensor display every second (reads are cached by EnvSensor)
+  static unsigned long lastSensorUpdate = 0;
+  unsigned long now = millis();
+  if (now - lastSensorUpdate >= 1000)
+  {
+    envSensor.read();
+    updateSensorDisplay();
+    lastSensorUpdate = now;
+  }
+}
+
+void MainInterface::updateSensorDisplay()
+{
+  char buf[80];
+  const char *touchState = lastTouchPressed ? "pressed" : "idle";
+  float t = envSensor.getTemperature();
+  float h = envSensor.getHumidity();
+  if (!isfinite(t) || !isfinite(h))
+    lv_snprintf(buf, sizeof(buf), "Temp: --°C  Hum: --%%  Touch: %d,%d %s", lastTouchX, lastTouchY, touchState);
+  else
+    lv_snprintf(buf, sizeof(buf), "Temp: %.1f°C  Hum: %.1f%%  Touch: %d,%d %s", t, h, lastTouchX, lastTouchY, touchState);
+  lv_label_set_text(infoLabel, buf);
 }
 
 void MainInterface::updateFPS()
@@ -243,8 +267,11 @@ void MainInterface::screenTouchEvent(lv_event_t *e)
   lv_event_code_t code = lv_event_get_code(e);
   const char *state = (code == LV_EVENT_RELEASED) ? "released" : "pressed";
   char ibuf[48];
-  lv_snprintf(ibuf, sizeof(ibuf), "Touch: %d,%d  state: %s", (int)p.x, (int)p.y, state);
-  lv_label_set_text(self->infoLabel, ibuf);
+  // Update stored touch coordinates and include sensor info
+  self->lastTouchX = p.x;
+  self->lastTouchY = p.y;
+  self->lastTouchPressed = (state[0] == 'p');
+  self->updateSensorDisplay();
 
   // Trail
   if (self->trailEnabled && (code == LV_EVENT_PRESSED || code == LV_EVENT_PRESSING))

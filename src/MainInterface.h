@@ -41,6 +41,11 @@ private:
   int trailIndex = 0;
   bool trailEnabled = true;
 
+  // Last touch coords (for combined sensor display)
+  int lastTouchX = -1;
+  int lastTouchY = -1;
+  bool lastTouchPressed = false;
+
   // Animation state
   int16_t bx = 10, by = 10;
   int8_t bdx = 2, bdy = 2;
@@ -50,6 +55,7 @@ private:
   void createTests();
   void createColorBars();
   void updateFPS();
+  void updateSensorDisplay();
 
   static void screenTouchEvent(lv_event_t *e);
 
