@@ -3,10 +3,15 @@
  * Author: Daniel Potter
  *
  * Generic display and touch test UI:
+/**
+ * Last Updated: Nov 29, 2025
+ * Author: Daniel Potter
+ *
+ * Generic display and simple DHT11 UI:
  * - Header with resolution and model
  * - Color bars + gradient box
- * - Touch marker and (optional) trail
- * - Bouncing square + FPS indicator
+ * - Simple bouncing square + FPS indicator
+ * - Temperature and humidity display (EnvSensor, DHT11 on GPIO21)
  */
 
 #include "MainInterface.h"
@@ -15,7 +20,6 @@
 
 /**
  * Constructor: Initializes all UI element pointers to nullptr
- * This prevents undefined behavior if accessed before initialization
  */
 MainInterface::MainInterface()
 {
@@ -27,24 +31,15 @@ MainInterface::MainInterface()
   colorRow = nullptr;
   gradientBox = nullptr;
   bouncer = nullptr;
-  touchMarker = nullptr;
-  for (int i = 0; i < TRAIL_CAP; ++i)
-    trail[i] = nullptr;
+  tempLabel = nullptr;
+  humLabel = nullptr;
 }
 
 /**
- * Destructor: Cleanup handled automatically by LVGL
- * LVGL's parent-child relationship manages memory
+ * Destructor
  */
-MainInterface::~MainInterface()
-{
-  // LVGL handles cleanup through parent-child relationships
-}
+MainInterface::~MainInterface() {}
 
-/**
- * Main initialization function
- * Creates and configures all UI elements in the proper hierarchy
- */
 void MainInterface::init()
 {
   // Create main screen
@@ -60,20 +55,12 @@ void MainInterface::init()
   // Header + tests
   createHeader();
   createTests();
-
-  // Touch event on screen (pressed/pressing)
-  lv_obj_add_event_cb(mainScreen, screenTouchEvent, LV_EVENT_PRESSED, this);
-  lv_obj_add_event_cb(mainScreen, screenTouchEvent, LV_EVENT_PRESSING, this);
-  lv_obj_add_event_cb(mainScreen, screenTouchEvent, LV_EVENT_RELEASED, this);
+  createSensorsArea();
 
   // Load screen
   lv_scr_load(mainScreen);
 }
 
-/**
- * Creates the fixed header area
- * Header contains title and remains at top of screen
- */
 void MainInterface::createHeader()
 {
   uint16_t w = lv_disp_get_hor_res(NULL);
@@ -103,13 +90,27 @@ void MainInterface::createHeader()
   // Info + FPS labels below header
   infoLabel = lv_label_create(mainScreen);
   lv_obj_set_style_text_color(infoLabel, lv_color_hex(0xA0A0A0), 0);
-  lv_label_set_text(infoLabel, "Temp: --°C  Hum: --%  Touch: --,-");
+  lv_label_set_text(infoLabel, "Temp: --°C  Hum: --%");
   lv_obj_align(infoLabel, LV_ALIGN_TOP_LEFT, 4, 48);
 
   fpsLabel = lv_label_create(mainScreen);
   lv_obj_set_style_text_color(fpsLabel, lv_color_hex(0xA0FFA0), 0);
   lv_label_set_text(fpsLabel, "FPS: --");
   lv_obj_align(fpsLabel, LV_ALIGN_TOP_RIGHT, -4, 48);
+}
+
+void MainInterface::createSensorsArea()
+{
+  // Create temperature and humidity labels below header
+  tempLabel = lv_label_create(mainScreen);
+  lv_obj_set_style_text_color(tempLabel, lv_color_hex(0xFFD0D0), 0);
+  lv_label_set_text(tempLabel, "Temp: --°C");
+  lv_obj_align(tempLabel, LV_ALIGN_TOP_LEFT, 4, 70);
+
+  humLabel = lv_label_create(mainScreen);
+  lv_obj_set_style_text_color(humLabel, lv_color_hex(0xD0D0FF), 0);
+  lv_label_set_text(humLabel, "Hum: --%");
+  lv_obj_align(humLabel, LV_ALIGN_TOP_LEFT, 4, 90);
 }
 
 void MainInterface::createColorBars()
@@ -166,26 +167,7 @@ void MainInterface::createTests()
   lv_obj_set_style_bg_color(bouncer, lv_color_hex(0x00A0FF), 0);
   lv_obj_set_style_radius(bouncer, 4, 0);
   lv_obj_align(bouncer, LV_ALIGN_TOP_LEFT, bx, by);
-
-  // Touch marker
-  touchMarker = lv_obj_create(mainScreen);
-  lv_obj_remove_style_all(touchMarker);
-  lv_obj_set_size(touchMarker, 10, 10);
-  lv_obj_set_style_bg_color(touchMarker, lv_color_hex(0xFFD000), 0);
-  lv_obj_set_style_radius(touchMarker, LV_RADIUS_CIRCLE, 0);
-  lv_obj_add_flag(touchMarker, LV_OBJ_FLAG_HIDDEN);
 }
-
-/**
- * Creates the scrollable content area
- * This area fills the remaining space below header
- * and enables vertical scrolling
- */
-
-/**
- * Update function called in main loop
- * Will be implemented later with sensor data
- */
 
 void MainInterface::update()
 {
@@ -223,14 +205,27 @@ void MainInterface::update()
 void MainInterface::updateSensorDisplay()
 {
   char buf[80];
-  const char *touchState = lastTouchPressed ? "pressed" : "idle";
   float t = envSensor.getTemperature();
   float h = envSensor.getHumidity();
   if (!isfinite(t) || !isfinite(h))
-    lv_snprintf(buf, sizeof(buf), "Temp: --°C  Hum: --%%  Touch: %d,%d %s", lastTouchX, lastTouchY, touchState);
+    lv_snprintf(buf, sizeof(buf), "Temp: --°C  Hum: --%%");
   else
-    lv_snprintf(buf, sizeof(buf), "Temp: %.1f°C  Hum: %.1f%%  Touch: %d,%d %s", t, h, lastTouchX, lastTouchY, touchState);
+    lv_snprintf(buf, sizeof(buf), "Temp: %.1f°C  Hum: %.1f%%", t, h);
   lv_label_set_text(infoLabel, buf);
+
+  // Also update individual labels
+  if (isfinite(t) && tempLabel)
+  {
+    char tbuf[32];
+    lv_snprintf(tbuf, sizeof(tbuf), "Temp: %.1f°C", t);
+    lv_label_set_text(tempLabel, tbuf);
+  }
+  if (isfinite(h) && humLabel)
+  {
+    char hbuf[32];
+    lv_snprintf(hbuf, sizeof(hbuf), "Hum: %.1f%%", h);
+    lv_label_set_text(humLabel, hbuf);
+  }
 }
 
 void MainInterface::updateFPS()
@@ -251,6 +246,37 @@ void MainInterface::updateFPS()
 
 void MainInterface::screenTouchEvent(lv_event_t *e)
 {
+  (void)e; // Touch removed for simple DHT interface
+}
+    {
+      if (tempLabel)
+        lv_label_set_text(tempLabel, "Temp: ERR");
+      if (humLabel)
+        lv_label_set_text(humLabel, "Hum: ERR");
+    }
+  }
+>>>>>>> acc7148 (Replace touch test UI with simple DHT11 temp/humidity interface (GPIO21); add SimpleDHT dependency)
+}
+
+void MainInterface::updateFPS()
+{
+  static uint32_t last = 0;
+  static uint16_t frames = 0;
+  frames++;
+  uint32_t now = lv_tick_get();
+  if (now - last >= 1000)
+  {
+    char buf[24];
+    lv_snprintf(buf, sizeof(buf), "FPS: %u", (unsigned)frames);
+    lv_label_set_text(fpsLabel, buf);
+    frames = 0;
+    last = now;
+  }
+}
+
+void MainInterface::screenTouchEvent(lv_event_t *e)
+{
+<<<<<<< HEAD
   MainInterface *self = static_cast<MainInterface *>(lv_event_get_user_data(e));
   if (!self)
     return;
@@ -290,4 +316,7 @@ void MainInterface::screenTouchEvent(lv_event_t *e)
     lv_obj_set_pos(dot, p.x - 3, p.y - 3);
     self->trailIndex = (self->trailIndex + 1) % TRAIL_CAP;
   }
+=======
+  (void)e; // Touch removed for simple DHT interface
+>>>>>>> acc7148 (Replace touch test UI with simple DHT11 temp/humidity interface (GPIO21); add SimpleDHT dependency)
 }

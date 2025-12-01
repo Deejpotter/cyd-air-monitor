@@ -15,6 +15,7 @@
 
 #include <lvgl.h>
 #include <stdint.h>
+#include "EnvSensor.h"
 
 class MainInterface
 {
@@ -34,17 +35,9 @@ private:
   lv_obj_t *gradientBox;
   lv_obj_t *bouncer;
 
-  // Touch marker/trail
-  lv_obj_t *touchMarker;
-  static constexpr int TRAIL_CAP = 50;
-  lv_obj_t *trail[TRAIL_CAP];
-  int trailIndex = 0;
-  bool trailEnabled = true;
-
-  // Last touch coords (for combined sensor display)
-  int lastTouchX = -1;
-  int lastTouchY = -1;
-  bool lastTouchPressed = false;
+  // Sensor labels
+  lv_obj_t *tempLabel;
+  lv_obj_t *humLabel;
 
   // Animation state
   int16_t bx = 10, by = 10;
@@ -54,10 +47,10 @@ private:
   void createHeader();
   void createTests();
   void createColorBars();
+  void createSensorsArea();
   void updateFPS();
   void updateSensorDisplay();
 
-  static void screenTouchEvent(lv_event_t *e);
 
 public:
   MainInterface();
