@@ -1,13 +1,11 @@
 // MainInterface.h
 /**
  * MainInterface.h
- * Last Updated: Nov 29, 2025
+ * Last Updated: Dec 1, 2025
  * Author: Daniel Potter
  *
- * Generic display and touch test interface for CYD.
- * - Shows color/gradient test bars
- * - Displays touch coordinates; optional touch trail
- * - Simple bouncing square animation and FPS indicator
+ * Air quality monitor interface for CYD.
+ * - Temperature and humidity display (DHT11 on GPIO21)
  */
 
 #ifndef MAIN_INTERFACE_H
@@ -27,30 +25,15 @@ private:
   // Header and info
   lv_obj_t *headerContainer;
   lv_obj_t *headerLabel;
-  lv_obj_t *infoLabel;
-  lv_obj_t *fpsLabel;
-
-  // Test areas
-  lv_obj_t *colorRow;
-  lv_obj_t *gradientBox;
-  lv_obj_t *bouncer;
 
   // Sensor labels
   lv_obj_t *tempLabel;
   lv_obj_t *humLabel;
 
-  // Animation state
-  int16_t bx = 10, by = 10;
-  int8_t bdx = 2, bdy = 2;
-
   // Helpers
   void createHeader();
-  void createTests();
-  void createColorBars();
   void createSensorsArea();
-  void updateFPS();
   void updateSensorDisplay();
-
 
 public:
   MainInterface();
