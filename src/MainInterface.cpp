@@ -2,11 +2,6 @@
  * Last Updated: Nov 29, 2025
  * Author: Daniel Potter
  *
- * Generic display and touch test UI:
-/**
- * Last Updated: Nov 29, 2025
- * Author: Daniel Potter
- *
  * Generic display and simple DHT11 UI:
  * - Header with resolution and model
  * - Color bars + gradient box
