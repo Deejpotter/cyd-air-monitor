@@ -1,29 +1,32 @@
 // EnvSensor.h
-// Minimal DHT11 reader (no external libs) for GPIO pin (DHT11)
+// ESP32-optimized DHT11 reader based on abdellah2288/esp32-dht11
 #ifndef ENV_SENSOR_H
 #define ENV_SENSOR_H
 
 #include <Arduino.h>
+#include <driver/gpio.h>
 
 class EnvSensor
 {
 public:
   EnvSensor();
   bool begin(uint8_t pin);
-  // read() updates cached values; returns true if a valid reading is available
   bool read();
   float getTemperature() const { return temperature; }
   float getHumidity() const { return humidity; }
   unsigned long lastReadMillis() const { return lastRead; }
 
 private:
-  uint8_t pin = 21;
+  gpio_num_t pin;
   float temperature = NAN;
   float humidity = NAN;
   unsigned long lastRead = 0;
-  const unsigned long minInterval = 2000; // DHT11 min sample interval
+  const unsigned long minInterval = 2000;
 
-  bool performRead();
+  // ESP32 low-level DHT11 functions
+  int waitForState(int state, int timeout);
+  void holdLow(int holdTimeUs);
+  int dht11Read(int connectionTimeout);
 };
 
 extern EnvSensor envSensor;

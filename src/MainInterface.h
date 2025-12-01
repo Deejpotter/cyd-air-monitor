@@ -26,8 +26,13 @@ private:
   lv_obj_t *headerContainer;
   lv_obj_t *headerLabel;
 
-  // Sensor labels
+  // Sensor cards and labels
+  lv_obj_t *tempCard;
+  lv_obj_t *tempLabelHeader;
   lv_obj_t *tempLabel;
+
+  lv_obj_t *humCard;
+  lv_obj_t *humLabelHeader;
   lv_obj_t *humLabel;
 
   // Helpers

@@ -1,13 +1,18 @@
-# CYD LVGL Template
+# CYD Air Monitor
 
 ## Overview
 
-This is a template that can be used to create a project for the JC2432W328R (AKA the Cheap Yellow Display) ESP32 board, as well as the JC2432W328C and JC4827W543R. The project is designed to initialize the display, touch screen, and lvgl interface.
-The user interface is built using LVGL. The code is uploaded to the CYD using PlatformIO.
+This project implements a temperature and humidity monitor for the JC2432W328R (Cheap Yellow Display) ESP32 board using a DHT11 sensor. The display shows real-time temperature and humidity readings in a card-based UI design.
 
-The rest of the project is up to you! You can add your own logic, events, and UI elements to create a custom project.
+The user interface is built using LVGL with custom card components featuring color-coded displays (warm orange for temperature, cool blue for humidity). The code is uploaded to the CYD using PlatformIO.
 
-Use the pins and other information in this template to connect sensors, motors, and other devices to the ESP32.
+### Key Features
+
+- DHT11 sensor integration on GPIO21
+- Card-based UI with temperature and humidity displays
+- Custom bit-bang DHT11 protocol implementation
+- Color-coded visual design
+- 2-second update interval for sensor readings
 
 ## Hardware Requirements
 
@@ -17,6 +22,12 @@ Use the pins and other information in this template to connect sensors, motors, 
   - ESP32-WROOM microcontroller
   - Built-in USB-C connector
   - Resistive touch screen
+
+- DHT11 Temperature/Humidity Sensor
+  - Connected to GPIO21 (DATA pin)
+  - VCC: 3.3V or 5V
+  - GND: Ground
+  - 10kΩ pull-up resistor recommended (some modules have built-in)
 
 - JC2432W328C ESP32 Board
   - 2.8-inch TFT display (320x240 resolution)
@@ -50,14 +61,21 @@ lib_deps =
 ```txt
 project/
 ├── src/
-│   ├── main.cpp           # Main program logic
-│   ├── ui/               # Generated UI files from Squareline
-│   │   ├── ui.h
-│   │   ├── ui.c
-│   │   ├── ui_events.cpp  # Custom event handlers
-│   │   └── ui_events.h
-│   └── config/           # Configuration files
-├── platformio.ini        # PlatformIO configuration
+│   ├── main.cpp              # Main program logic
+│   ├── MainInterface.h       # UI class definition
+│   ├── MainInterface.cpp     # Card-based UI implementation
+│   ├── EnvSensor.h          # DHT11 sensor interface
+│   ├── EnvSensor.cpp        # Custom DHT11 bit-bang protocol
+│   ├── TemplateCode.h       # Display/LVGL initialization
+│   ├── TemplateCode.cpp     # Display driver glue code
+│   └── RGBledDriver.*       # RGB LED support
+├── template files/          # Config templates
+│   ├── lv_conf.h           # LVGL configuration
+│   └── jc2432w328r/
+│       └── User_Setup.h    # TFT_eSPI pin configuration
+├── scripts/
+│   └── copy_template.py    # Pre-build config copy script
+├── platformio.ini          # PlatformIO configuration
 └── README.md
 ```
 
@@ -182,6 +200,51 @@ Verify pin configurations match the hardware
 
 Check PlatformIO.ini configuration
 Verify library versions are compatible
+
+### DHT11 Sensor Issues
+
+If sensor reads fail or show incorrect values:
+
+- Verify DHT11 DATA pin connected to GPIO21
+- Check VCC connected to 3.3V or 5V (DHT11 works with both)
+- Ensure GND is connected
+- Add 10kΩ pull-up resistor between DATA and VCC if not using module with built-in resistor
+- DHT11 requires minimum 1-2 second interval between reads
+- Custom implementation uses interrupt-disabled bit-bang protocol with checksum tolerance (±1 bit)
+
+## DHT11 Implementation Details
+
+This project uses a custom DHT11 implementation rather than a library:
+
+### Protocol Overview
+
+1. Start signal: Pull DATA low for 18ms, then high for 40µs
+2. Wait for DHT11 response (80µs low, 80µs high)
+3. Read 40 bits: Each bit starts with 50µs low, then high duration determines value
+   - 26-28µs high = 0
+   - 70µs high = 1
+4. Validate checksum: sum of first 4 bytes should equal 5th byte (±1 tolerance)
+
+### Data Format
+
+- Byte 0: Humidity integer
+- Byte 1: Humidity decimal (always 0 for DHT11)
+- Byte 2: Temperature integer
+- Byte 3: Temperature decimal (always 0 for DHT11)
+- Byte 4: Checksum
+
+### Special Handling
+
+- Interrupts disabled during read for timing accuracy
+- Bit 39 (last bit) uses delay-based timing instead of waiting for pin LOW
+- Checksum allows ±1 bit error tolerance
+- 2-second minimum interval enforced between reads
+
+### Known Issues
+
+- GPIO21 may conflict with I2C on some CYD variants (used as SDA)
+- If reads consistently fail, try different GPIO pin (e.g., GPIO4, GPIO22, GPIO25)
+- Bit-bang timing sensitive to CPU load; avoid heavy processing during reads
 
 ## Resources
 

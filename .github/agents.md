@@ -5,13 +5,16 @@ This repo is a PlatformIO (Arduino/ESP32) LVGL project targeting the Cheap Yello
 - jc2432w328r: 2.8" 320x240, ST7789, resistive touch (XPT2046)
 - jc2432w328c: 2.8" 320x240, ST7789, capacitive touch (CST820)
 
+## Project Purpose
+
+Temperature and humidity monitor using DHT11 sensor on GPIO21 with card-based UI.
+
 Big picture
 
-- LVGL + TFT_eSPI glue lives in `src/system/TemplateCode.{h,cpp}`. It initializes TFT, LVGL buffers/drivers, and (when enabled) touch.
-- UI code lives in `src/ui/MainInterface.{h,cpp}`. Keep it LVGL-only (no hardware logic).
-- Device drivers live in `src/drivers/` (e.g., `CST820.h`, `RGBledDriver.{h,cpp}`).
-- Sensors live in `src/sensors/` (e.g., `SensorManager.{h,cpp}`) and are scheduled via `src/system/PeriodicScheduler.{h,cpp}`.
-- App entry is `src/main.cpp`: creates/initializes TemplateCode, UI, sensors, and scheduler.
+- LVGL + TFT_eSPI glue lives in `src/TemplateCode.{h,cpp}`. It initializes TFT, LVGL buffers/drivers, and (when enabled) touch.
+- UI code lives in `src/MainInterface.{h,cpp}`. Card-based design with temperature (orange) and humidity (blue) displays. Keep it LVGL-only (no hardware logic).
+- DHT11 sensor driver lives in `src/EnvSensor.{h,cpp}` with custom bit-bang protocol implementation.
+- App entry is `src/main.cpp`: creates/initializes TemplateCode, UI, and EnvSensor.
 - Per-board config is driven by PlatformIO environments in `platformio.ini` and the TFT_eSPI `User_Setup.h` copied by a pre-build script.
 
 Critical workflows
@@ -73,9 +76,56 @@ Quick file map
 - `platformio.ini`: environments and build flags; pre-build script configured here.
 - `scripts/copy_template.py`: copies template display configs into libdeps for the active env.
 - `template files/`: source-of-truth configs for TFT_eSPI (`User_Setup.h`) and LVGL (`lv_conf.h`), per env if needed.
-- `src/system/TemplateCode.*`: LVGL + TFT glue and (optional) touch input glue.
-- `src/ui/MainInterface.*`: LVGL UI, keep hardware-agnostic.
-- `src/sensors/`, `src/drivers/`: sensor and hardware drivers.
+- `src/TemplateCode.*`: LVGL + TFT glue and (optional) touch input glue.
+- `src/MainInterface.*`: LVGL UI with card-based temperature/humidity display. Keep hardware-agnostic.
+- `src/EnvSensor.*`: DHT11 sensor driver with custom bit-bang protocol implementation.
+
+## DHT11 Sensor Implementation (CRITICAL)
+
+**Current sensor implementation uses custom bit-bang protocol** in `src/EnvSensor.cpp`:
+
+### Protocol Details
+
+1. **Start signal**: Pull GPIO21 LOW for 18ms, then HIGH for 40µs
+2. **Wait for response**: DHT11 pulls low (80µs), then high (80µs)
+3. **Read 40 bits**: Each bit has 50µs LOW, then HIGH duration determines value:
+   - 26-28µs HIGH = bit 0
+   - 70µs HIGH = bit 1
+4. **Validate checksum**: byte[0] + byte[1] + byte[2] + byte[3] should equal byte[4] (±1 tolerance)
+
+### Data Format
+
+- Byte 0: Humidity integer (DHT11 has no decimal)
+- Byte 1: Humidity decimal (always 0)
+- Byte 2: Temperature integer  
+- Byte 3: Temperature decimal (always 0)
+- Byte 4: Checksum
+
+### Critical Implementation Details
+
+- **Interrupts disabled** during entire read sequence for timing accuracy
+- **Bit 39 special handling**: Uses `delayMicroseconds(60)` instead of polling for LOW (timing quirk)
+- **Checksum tolerance**: Allows ±1 bit error to handle minor timing variations
+- **Minimum interval**: 2-second delay enforced between reads
+- **GPIO21 conflicts**: May interfere with I2C (SDA on some CYD variants)
+
+### Troubleshooting
+
+- If reads fail: verify wiring (VCC, GPIO21 DATA, GND, 10kΩ pull-up)
+- If checksum errors persist: timing may be off due to CPU load
+- If GPIO21 conflicts: try GPIO4, GPIO22, or GPIO25
+- **DO NOT switch to SimpleDHT library** - it consistently fails with error 2832 on this hardware
+- Custom implementation has proven reliable with checksum tolerance
+
+### UI Integration
+
+- `MainInterface::update()` calls `envSensor.read()` every 2 seconds
+- `MainInterface::updateSensorDisplay()` formats values as integers (%.0f)
+- Temperature card: orange border (0xFF6B35), warm background
+- Humidity card: blue border (0x4A90E2), cool background
+- Dark background: 0x1a1d29
+- Font: lv_font_montserrat_28
+- Shows "--°C" and "--%%" when sensor unavailable
 
 Notes
 
