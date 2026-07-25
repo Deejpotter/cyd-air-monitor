@@ -12,24 +12,12 @@
 #include "SettingsStore.h"
 #include "WebServerManager.h"
 #include "WiFiConnectionManager.h"
-#include <DHT.h>
 
 TemplateCode &templateCode = TemplateCode::getInstance();
 MainInterface mainInterface = MainInterface();
 
-#ifdef MODEL_2432S028R
-#define DHTPIN 27
-#elif defined(MODEL_JC2432W328C)
-#define DHTPIN 22
-#elif defined(MODEL_JC4827W543R)
-#define DHTPIN 5
-#else
-#define DHTPIN 21
-#endif
-#define DHTTYPE DHT11
-
 PeriodicScheduler scheduler;
-SensorManager sensorManager(DHTPIN, DHTTYPE, 2000);
+SensorManager sensorManager(3000);
 SettingsStore settingsStore;
 WiFiConnectionManager wifiManager;
 WebServerManager webServer;
@@ -63,11 +51,21 @@ static void refreshWebHint()
 void setup()
 {
   Serial.begin(115200);
+#if defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
+  // ESP32-S3 USB CDC: early prints are lost until the host opens the port
+  unsigned long usbWaitStart = millis();
+  while (!Serial && (millis() - usbWaitStart) < 5000)
+    delay(10);
+#endif
+  Serial.println();
+  Serial.println("CYD Air Monitor boot");
+
   settingsStore.begin();
   if (!settingsStore.isReady())
     Serial.println("Warning: NVS settings unavailable");
 
   sensorManager.begin();
+  Serial.printf("Sensor poll interval: %u ms\n", 3000U);
 
   if (!templateCode.begin())
   {
@@ -88,12 +86,18 @@ void setup()
     refreshWebHint();
   });
 
+  // Log sensor wiring after USB/display init (boot lines are often lost on ESP32-S3 CDC)
+  sensorManager.logStartupDiagnostics();
+
   sensorManager.onChange([&](float t, float h)
                          {
     if (!isnan(t)) mainInterface.setTemperature(t);
     if (!isnan(h)) mainInterface.setHumidity(h); });
 
-  scheduler.addTask(std::bind(&SensorManager::update, &sensorManager), 2000);
+  // Prime dashboard (scheduler first tick is 2s later)
+  sensorManager.update();
+
+  scheduler.addTask(std::bind(&SensorManager::update, &sensorManager), 3000);
   scheduler.addTask(std::bind(&WiFiConnectionManager::update, &wifiManager), 500);
   scheduler.addTask(std::bind(&WebServerManager::update, &webServer), 50);
   scheduler.addTask(std::bind(&MainInterface::update, &mainInterface), 100);
@@ -104,5 +108,17 @@ void loop()
 {
   templateCode.update();
   scheduler.update();
+
+#if defined(ARDUINO_USB_CDC_ON_BOOT) && ARDUINO_USB_CDC_ON_BOOT
+  static bool usbLogReady = false;
+  if (!usbLogReady && Serial)
+  {
+    usbLogReady = true;
+    Serial.println();
+    Serial.println("--- USB serial connected ---");
+    sensorManager.logStartupDiagnostics();
+  }
+#endif
+
   delay(10);
 }

@@ -23,6 +23,26 @@ SettingsStore    (runtime touch cal from NVS, resistive only)
 | `jc2432w328c` | ST7789 | TFT_eSPI | 320×240 | CST820 I²C | 1 | native portrait → landscape |
 | `jc4827w543r` | NV3041A | Arduino_GFX QSPI | 480×272 | XPT2046 | 0 | rot 0, no mirror |
 
+## JC4827W543R external connectors
+
+Rear silkscreen (JST 1.25 mm unless noted). Full table on the [JC4827W543R board page](/boards/jc4827w543r#connectors).
+
+| Connector | Pins (silkscreen → GPIO) |
+|-----------|--------------------------|
+| **P2** | IO46→46, IO9→9, IO14→14, IO5→5 (general-purpose GPIO) |
+| **P3** | IO6→6, IO7→7, IO15→15, IO16→16 (often used for I²S / speaker) |
+| **P4** | GND, 3.3V, IO17→17 (**DHT11 data**), IO18→18 (free / I²C SCL) — **JST 1.25 mm** |
+| **P5** | Same signals as P4 — **4-pin 2.54 mm male header** (dupont-friendly, not JST) |
+| **P1** | +5V, RXD→44, TXD→43, GND (UART0 — USB-C CDC used for flash/serial) |
+| **P6** | BAT+, BAT− (Li-ion via IP5306 charger) |
+| **P7** | Speaker (NS4168 amp) |
+| **LCD1** | Wide **FFC/FPC** — factory flex to the 4.3″ LCD + touch assembly |
+| **FPC1** | Small **FFC/FPC** at top edge — auxiliary flex (often unused; revision-specific) |
+| **TF1** | microSD slot (CS ≈ GPIO 10) |
+| **USB1** | USB-C power + native CDC (`/dev/ttyACM0`) |
+| **SW1** | Onboard user button |
+| **S1–S4** | Unpopulated button solder pads |
+
 <BoardMatrix />
 
 ## Key concept: display ≠ touch rotation

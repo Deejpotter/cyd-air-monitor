@@ -53,7 +53,7 @@ export const gotchas: Gotcha[] = [
     boardIds: 'all',
     category: 'wiring',
     title: 'DHT11 pin changes per board',
-    body: 'GPIO 27 on original CYD, 21 on JC2432R, 22 on JC2432C, 5 on JC4827 (P2 connector). NaN readings are often wrong pin.',
+    body: 'GPIO 27 on original CYD, 21 on JC2432R, 22 on JC2432C, 17 on JC4827 (P4 IO17). NaN readings are often wrong pin.',
     severity: 'common',
   },
   {
@@ -62,7 +62,7 @@ export const gotchas: Gotcha[] = [
     category: 'build',
     title: 'Linux upload needs dialout group',
     body: 'Permission denied on `/dev/ttyUSB*` or `/dev/ttyACM*` unless user is in `dialout`.',
-    fix: '`sudo usermod -aG dialout $USER` then log out/in — or `sudo pio run -e ENV --target upload`.',
+    fix: '`sudo usermod -aG dialout $USER` then open a new terminal — or run `newgrp dialout` in the current shell.',
     severity: 'common',
   },
 
@@ -205,8 +205,16 @@ export const gotchas: Gotcha[] = [
     id: '4827-dht-p2',
     boardIds: ['jc4827w543r'],
     category: 'wiring',
-    title: 'DHT11 on P2 connector GPIO 5',
-    body: 'Not the same pins as CYD boards. P2 silkscreen: IO46, IO9, IO14, IO5.',
+    title: 'External connectors P1–P7 (rear silkscreen)',
+    body: 'P2–P4, P6, P7: JST 1.25 mm. P5: 4-pin male header (same as P4 — GND, 3.3V, UART1 IO17/18). P1: +5V serial JST. LCD1: main display flex. FPC1: small top FPC (aux). P6 battery, P7 speaker. TF1 microSD.',
+    severity: 'common',
+  },
+  {
+    id: '4827-dht-gpio5',
+    boardIds: ['jc4827w543r'],
+    category: 'wiring',
+    title: 'DHT11 on P4 connector GPIO 17',
+    body: 'Wire data to IO17 on P4; 3.3 V and GND on the same connector. IO18 stays free (e.g. I2C SCL for a BME later).',
     severity: 'common',
   },
   {

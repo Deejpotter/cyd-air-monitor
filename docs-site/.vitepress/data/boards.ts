@@ -4,6 +4,22 @@ export interface BoardPin {
   notes?: string
 }
 
+export interface BoardConnectorPin {
+  label: string
+  gpio?: string
+  notes?: string
+}
+
+/** Physical JST / header on the PCB (silkscreen id matches the board label, e.g. P2). */
+export interface BoardConnector {
+  id: string
+  name: string
+  type: string
+  location?: string
+  pins: BoardConnectorPin[]
+  notes?: string
+}
+
 export interface BoardFeature {
   title: string
   detail: string
@@ -44,6 +60,8 @@ export interface BoardSpec {
     sensor?: BoardPin[]
     other?: BoardPin[]
   }
+  /** External connectors on the PCB (board-specific — see rear silkscreen). */
+  connectors?: BoardConnector[]
   troubleshooting: { symptom: string; fixes: string[] }[]
   links: { label: string; url: string }[]
 }
@@ -319,7 +337,7 @@ export const boards: BoardSpec[] = [
     touch: 'resistive',
     touchChip: 'XPT2046',
     displayDriver: 'Arduino_GFX (QSPI)',
-    dhtPin: 5,
+    dhtPin: 17,
     rgbLed: false,
     defaultEnv: false,
     uploadPort: '/dev/ttyACM0',
@@ -328,9 +346,10 @@ export const boards: BoardSpec[] = [
       { icon: '⚡', title: 'QSPI display bus', detail: 'NV3041A via Arduino_GFX, not TFT_eSPI. Requires jc4827w543r env.' },
       { icon: '🧠', title: 'ESP32-S3 + PSRAM', detail: '8 MB flash, PSRAM enabled — USB CDC serial on /dev/ttyACM0.' },
       { icon: '👆', title: 'Resistive touch', detail: 'Separate SPI for XPT2046 — CS 38, with board-specific cal defaults.' },
+      { icon: '🔌', title: 'JST breakout headers', detail: 'P2–P7 on the rear: GPIO, UART1, 5 V serial, battery, and speaker. See Connectors section.' },
     ],
     firmwareFeatures: [
-      { icon: '🌡', title: 'DHT11 on P2', detail: 'GPIO 5 on the P2 connector — not the same pins as 2.8" boards.' },
+      { icon: '🌡', title: 'DHT11 on P4', detail: 'GPIO 17 (IO17) for data — 3.3 V and GND on the same P4 connector.' },
       { icon: '📶', title: 'WiFi settings', detail: 'Same LVGL settings screens scaled for the wider display.' },
       { icon: '👆', title: 'Touch calibration', detail: 'Defaults X 350–3500, Y 300–3800 — save via Touch Test.' },
       { icon: '🔄', title: 'Runtime rotation', detail: 'Settings → Rotate Display — useful when panel is mounted upside-down.' },
@@ -343,7 +362,8 @@ export const boards: BoardSpec[] = [
     notes: [
       'Guition "Cheap Chonky Display" — ESP32-S3 with 8 MB PSRAM.',
       'Display uses QSPI via Arduino_GFX, not TFT_eSPI.',
-      'Native landscape 480×272; DHT11 on P2 connector GPIO 5.',
+      'Native landscape 480×272; DHT11 data on P4 IO17 (3.3 V + GND on P4).',
+      'Rear silkscreen: P2–P4,P6,P7 = JST 1.25 mm; P5 = 2.54 mm pin header; P1 JST; TF1 microSD; LCD1 + FPC1 flex sockets.',
       'No onboard RGB LED.',
     ],
     build: {
@@ -369,9 +389,101 @@ export const boards: BoardSpec[] = [
         { label: 'MISO', gpio: '13' },
         { label: 'CLK', gpio: '12' },
       ],
-      sensor: [{ label: 'DHT11 data (P2)', gpio: '5' }],
-      other: [{ label: 'USB', gpio: 'USB-C CDC', notes: 'ARDUINO_USB_CDC_ON_BOOT=1' }],
+      sensor: [
+        { label: 'DHT11 (P4)', gpio: '17', notes: 'IO17 data — or BME680 SDA when swapped' },
+        { label: 'BME680 SCL (P4)', gpio: '18', notes: 'IO18 — I2C clock when BME680 is connected' },
+      ],
+      other: [
+        { label: 'LCD1', gpio: '—', notes: 'Wide FFC/FPC — flex cable to 4.3″ LCD + touch panel (factory, do not reseat casually)' },
+        { label: 'FPC1', gpio: '—', notes: 'Small top-edge FPC socket — auxiliary flex (revision-specific; often unused in stock builds)' },
+        { label: 'microSD TF1', gpio: '10', notes: 'TF_CS — SD card slot on rear' },
+        { label: 'USB', gpio: 'USB-C CDC', notes: 'ARDUINO_USB_CDC_ON_BOOT=1' },
+        { label: 'User button', gpio: 'SW1', notes: 'Onboard tactile switch (not on a JST)' },
+      ],
     },
+    connectors: [
+      {
+        id: 'P2',
+        name: 'P2 — GPIO breakout',
+        type: 'JST 1.25 mm 4-pin',
+        location: 'Left edge (upper)',
+        pins: [
+          { label: 'IO46', gpio: '46', notes: 'Strapping pin — can affect boot if pulled wrong' },
+          { label: 'IO9', gpio: '9', notes: 'General-purpose' },
+          { label: 'IO14', gpio: '14', notes: 'General-purpose' },
+          { label: 'IO5', gpio: '5', notes: 'General-purpose' },
+        ],
+      },
+      {
+        id: 'P3',
+        name: 'P3 — GPIO / I²S',
+        type: 'JST 1.25 mm 4-pin',
+        location: 'Left edge',
+        pins: [
+          { label: 'IO6', gpio: '6', notes: 'General-purpose / I²S' },
+          { label: 'IO7', gpio: '7', notes: 'Often I²S LRCLK / WS' },
+          { label: 'IO15', gpio: '15', notes: 'Often I²S data out' },
+          { label: 'IO16', gpio: '16', notes: 'General-purpose / I²S' },
+        ],
+      },
+      {
+        id: 'P4',
+        name: 'P4 — 3.3 V + DHT11 / UART1',
+        type: 'JST 1.25 mm 4-pin',
+        location: 'Left edge (lower)',
+        pins: [
+          { label: 'GND', notes: 'Ground' },
+          { label: '3.3V', notes: '3.3 V output' },
+          { label: 'IO17', gpio: '17', notes: 'DHT data, or BME680 I2C SDA when swapped' },
+          { label: 'IO18', gpio: '18', notes: 'BME680 I2C SCL (when using BME)' },
+        ],
+      },
+      {
+        id: 'P5',
+        name: 'P5 — UART1 + 3.3 V (pin header)',
+        type: '4-pin 2.54 mm male header (not JST)',
+        location: 'Bottom left corner',
+        pins: [
+          { label: 'GND', notes: 'Ground' },
+          { label: '3.3V', notes: '3.3 V output' },
+          { label: 'IO17', gpio: '17', notes: 'UART1 TX' },
+          { label: 'IO18', gpio: '18', notes: 'UART1 RX' },
+        ],
+        notes: 'Same electrical signals as P4 — soldered pin header for dupont wires or a shrouded cable. P4 is the JST version on the left edge.',
+      },
+      {
+        id: 'P1',
+        name: 'P1 — 5 V serial',
+        type: 'JST 1.25 mm 4-pin',
+        location: 'Bottom, beside USB-C',
+        pins: [
+          { label: '+5V', notes: '5 V (USB power rail)' },
+          { label: 'RXD', gpio: '44', notes: 'UART0 RX (U0RXD) — 3.3 V logic' },
+          { label: 'TXD', gpio: '43', notes: 'UART0 TX (U0TXD)' },
+          { label: 'GND', notes: 'Ground' },
+        ],
+        notes: 'Hardware UART0 header. Flashing and Serial Monitor normally use USB-C CDC instead.',
+      },
+      {
+        id: 'P6',
+        name: 'P6 — Battery',
+        type: 'JST 1.25 mm 2-pin',
+        location: 'Right edge',
+        pins: [
+          { label: 'BAT+', notes: 'Li-ion cell positive (IP5306 charger IC)' },
+          { label: 'BAT−', notes: 'Li-ion cell negative' },
+        ],
+      },
+      {
+        id: 'P7',
+        name: 'P7 — Speaker',
+        type: 'JST 1.25 mm 2-pin',
+        location: 'Right edge',
+        pins: [
+          { label: 'Speak', notes: 'NS4168 mono amp output — connect 8 Ω speaker' },
+        ],
+      },
+    ],
     troubleshooting: [
       {
         symptom: 'Blank display',

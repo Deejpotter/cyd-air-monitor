@@ -115,6 +115,28 @@ Saved resistive calibration overrides compile-time `TOUCH_X_MIN/MAX` defaults on
 3. If **touch** is wrong, adjust `TOUCH_MIRROR_X/Y` or `TOUCH_ROTATION` without changing display rotation.
 4. Rebuild — no need to edit `.pio/` files.
 
+## JC4827W543R connectors (rear silkscreen)
+
+Guition **JC4827W543** boards expose JST **1.25 mm** headers on the **rear** of the PCB. Interactive detail: [docs site board page](https://deejpotter.github.io/cyd-air-monitor/boards/jc4827w543r#connectors).
+
+| Connector | Signals |
+|-----------|---------|
+| **P2** | IO46 (GPIO 46), IO9 (9), IO14 (14), IO5 (5) |
+| **P3** | IO6 (6), IO7 (7), IO15 (15), IO16 (16) — often used for I²S / speaker |
+| **P4** | GND, 3.3V, IO17 (17) **DHT11 data**, IO18 (18) free — **JST 1.25 mm** |
+| **P5** | Same as P4 — **4-pin 2.54 mm male header** (not JST; bottom-left corner) |
+| **P1** | +5V, RXD (GPIO 44), TXD (GPIO 43), GND — UART0 header; USB-C CDC used for upload/serial |
+| **P6** | BAT+, BAT− — Li-ion cell (IP5306 charger) |
+| **P7** | Speaker — NS4168 mono amp output |
+| **LCD1** | Wide FFC/FPC — flex cable to the **4.3″ display + touch** front assembly (factory) |
+| **FPC1** | Small FFC/FPC at the **top edge** — auxiliary flex socket (revision-specific; often empty) |
+| **TF1** | microSD slot (CS ≈ GPIO 10) |
+| **USB1** | USB-C power and native serial (`/dev/ttyACM0`) |
+
+Also on the PCB: **SW1** user button, **S1–S4** unpopulated button pads.
+
+Display/touch signals to the panel go through **LCD1** (and possibly **FPC1** on some revisions) — not user GPIO.
+
 ## References
 
 - [Random Nerd Tutorials CYD pinout](https://randomnerdtutorials.com/cheap-yellow-display-esp32-2432s028r/)

@@ -2,29 +2,33 @@
 
 #include <functional>
 #include <stdint.h>
-class DHT;
 
 class SensorManager
 {
 public:
   using Callback = std::function<void(float tempC, float humidity)>;
 
-  SensorManager(uint8_t dhtPin, uint8_t dhtType, uint32_t intervalMs = 2000);
+  explicit SensorManager(uint32_t intervalMs = 2000);
+
   void begin();
-  void update(); // immediate read; intended to be called by scheduler
+  void logStartupDiagnostics();
+  void update();
 
   void onChange(Callback cb);
 
   float lastTemperature() const;
   float lastHumidity() const;
 
+  /** True when a BME680 responded on the configured I2C bus (jc4827 only). */
+  bool bme680Active() const;
+
 private:
-  uint8_t pin;
-  uint8_t type;
   uint32_t interval;
   uint32_t lastRead;
   float tmp;
   float hum;
   Callback cb;
-  DHT *dht;
+  bool bmePresent;
+
+  void readSensors(float &tempC, float &humidity);
 };

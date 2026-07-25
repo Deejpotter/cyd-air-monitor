@@ -108,6 +108,37 @@ async function copyText(text: string, key: string) {
       </div>
     </section>
 
+    <section id="connectors" class="board-section board-section--soft" v-if="board.connectors?.length">
+      <div class="board-section__head">
+        <h2>Connectors</h2>
+        <p>
+          Physical headers on the <strong>rear</strong> of the PCB (silkscreen labels match Guition JC4827W543).
+          Pin order follows the labels printed next to each JST on the board.
+        </p>
+      </div>
+      <div class="board-connector-grid">
+        <article v-for="conn in board.connectors" :key="conn.id" class="board-connector-card">
+          <header class="board-connector-card__head">
+            <h3>{{ conn.name }}</h3>
+            <p class="board-muted">{{ conn.type }}<span v-if="conn.location"> · {{ conn.location }}</span></p>
+          </header>
+          <table class="board-table board-table--compact">
+            <tbody>
+              <tr v-for="pin in conn.pins" :key="pin.label">
+                <th>{{ pin.label }}</th>
+                <td>
+                  <template v-if="pin.gpio">GPIO {{ pin.gpio }}</template>
+                  <template v-else>{{ pin.notes || '—' }}</template>
+                  <span v-if="pin.gpio && pin.notes" class="board-muted"> — {{ pin.notes }}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-if="conn.notes" class="board-connector-card__note">{{ conn.notes }}</p>
+        </article>
+      </div>
+    </section>
+
     <section class="board-section">
       <div class="board-two-col">
         <div>

@@ -18,7 +18,7 @@
 | `2432s028r` | 27 |
 | `jc2432w328r` | 21 |
 | `jc2432w328c` | 22 |
-| `jc4827w543r` | 5 (P2) |
+| `jc4827w543r` | 17 (P4 IO17) |
 
 ## What breaks if you mix them up
 

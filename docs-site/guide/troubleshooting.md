@@ -35,7 +35,7 @@ Template copies are overwritten every build. Edit `template files/` instead.
 
 | Problem | Fix |
 |---------|-----|
-| Permission denied on serial port | `sudo usermod -aG dialout $USER` or `sudo pio run -e ENV --target upload` |
+| Permission denied on serial port | `sudo usermod -aG dialout $USER`, then **new terminal** — or `newgrp dialout` in the current shell |
 | `.pio/build` owned by root | `sudo chown -R $USER:$USER .pio` after sudo builds |
 | JC4827 library error | Use `moononournation/GFX Library for Arduino@1.4.9` (not `Arduino_GFX`) |
 

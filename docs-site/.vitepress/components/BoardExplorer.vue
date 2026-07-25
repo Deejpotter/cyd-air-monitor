@@ -120,6 +120,27 @@ const previewClass = computed(() =>
           </div>
         </details>
 
+        <details v-if="selected.connectors?.length" style="margin-top: 0.75rem">
+          <summary><strong>Connectors (rear PCB)</strong></summary>
+          <div v-for="conn in selected.connectors" :key="conn.id" style="margin-top: 0.75rem">
+            <h4 style="margin: 0 0 0.35rem">{{ conn.name }}</h4>
+            <p v-if="conn.location" class="cyd-muted" style="margin: 0 0 0.35rem">{{ conn.type }} · {{ conn.location }}</p>
+            <table class="cyd-spec-table">
+              <tbody>
+                <tr v-for="pin in conn.pins" :key="pin.label">
+                  <th>{{ pin.label }}</th>
+                  <td>
+                    <template v-if="pin.gpio">GPIO {{ pin.gpio }}</template>
+                    <template v-else>{{ pin.notes || '—' }}</template>
+                    <span v-if="pin.gpio && pin.notes"> — {{ pin.notes }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-if="conn.notes" style="font-size: 0.85rem; color: var(--cyd-text-muted); margin: 0.35rem 0 0">{{ conn.notes }}</p>
+          </div>
+        </details>
+
         <details style="margin-top: 0.75rem">
           <summary><strong>Pin map</strong></summary>
           <div v-for="(group, key) in selected.pins" :key="key" style="margin-top: 0.75rem">

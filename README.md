@@ -11,7 +11,7 @@ This project is based on the [cyd-lvgl-template](https://github.com/Deejpotter/c
 | `2432s028r` (default) | ESP32-2432S028R (original CYD) | Resistive (XPT2046) | GPIO 27 |
 | `jc2432w328r` | JC2432W328R | Resistive (XPT2046) | GPIO 21 |
 | `jc2432w328c` | JC2432W328C | Capacitive (CST820) | GPIO 22 |
-| `jc4827w543r` | JC4827W543R (Guition 4.3") | Resistive (XPT2046) | GPIO 5 |
+| `jc4827w543r` | JC4827W543R (Guition 4.3") | Resistive (XPT2046) | GPIO 17 (P4) |
 
 Most CYD boards use a **2.8" ST7789** at **320×240**. The JC4827W543R uses a **4.3" NV3041A** at **480×272** (ESP32-S3, Arduino_GFX). Pin mappings and touch type are defined per environment in `platformio.ini`.
 
@@ -33,6 +33,12 @@ cd cyd-air-monitor
 pio run -e 2432s028r              # build (change env for your board)
 pio run -e 2432s028r --target upload
 pio device monitor                # serial output at 115200 baud
+```
+
+On **Linux**, if serial upload/monitor hits permission denied, add yourself to `dialout` and open a **new terminal** (or run `newgrp dialout`):
+
+```bash
+sudo usermod -aG dialout $USER
 ```
 
 On first build, `scripts/copy_template.py` copies display config files from `template files/` into `.pio/libdeps/<env>/`. Do not edit files under `.pio/` directly — change the templates and rebuild.
@@ -102,6 +108,8 @@ Resolve conflicts carefully — this repo adds sensor and UI code on top of the 
 **Touch not working** — Resistive and capacitive boards use different envs. Do not mix `jc2432w328r` and `jc2432w328c`.
 
 **DHT11 reads NaN** — Check wiring and that you are using the DHT pin for your env (see table above). Allow a few seconds after power-on for the first valid reading.
+
+**Serial permission denied (Linux)** — `sudo usermod -aG dialout $USER`, then open a new terminal. For JC4827 use `/dev/ttyACM0`.
 
 **LVGL layout clipped** — Rotation/resolution must match between TFT_eSPI (`User_Setup.h`) and `TemplateCode`. Rebuild after changing templates.
 
