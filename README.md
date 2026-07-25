@@ -1,197 +1,111 @@
-# CYD LVGL Template
+# CYD Air Monitor
 
-## Overview
+An ESP32 firmware project that turns a **Cheap Yellow Display (CYD)** into a tabletop temperature and humidity monitor. It reads a **DHT11** sensor and shows live values on an **LVGL** UI.
 
-This is a template that can be used to create a project for the JC2432W328R (AKA the Cheap Yellow Display) ESP32 board, as well as the JC2432W328C and JC4827W543R. The project is designed to initialize the display, touch screen, and lvgl interface.
-The user interface is built using LVGL. The code is uploaded to the CYD using PlatformIO.
+This project is based on the [cyd-lvgl-template](https://github.com/Deejpotter/cyd-lvgl-template) display/touch/LVGL foundation.
 
-The rest of the project is up to you! You can add your own logic, events, and UI elements to create a custom project.
+## Supported hardware
 
-Use the pins and other information in this template to connect sensors, motors, and other devices to the ESP32.
+| PlatformIO env | Board | Touch | DHT11 pin |
+|----------------|-------|-------|-----------|
+| `2432s028r` (default) | ESP32-2432S028R (original CYD) | Resistive (XPT2046) | GPIO 27 |
+| `jc2432w328r` | JC2432W328R | Resistive (XPT2046) | GPIO 21 |
+| `jc2432w328c` | JC2432W328C | Capacitive (CST820) | GPIO 22 |
 
-## Hardware Requirements
+All supported boards use a **2.8" ST7789** display at **320×240**. Pin mappings and touch type are defined per environment in `platformio.ini`.
 
-- JC2432W328R ESP32 Board
-  - 2.8-inch TFT display (320x240 resolution)
-  - ST7789 V2 display driver
-  - ESP32-WROOM microcontroller
-  - Built-in USB-C connector
-  - Resistive touch screen
+Connect the DHT11 data pin to the GPIO listed above (VCC to 3.3 V, GND to GND).
 
-- JC2432W328C ESP32 Board
-  - 2.8-inch TFT display (320x240 resolution)
-  - ST7789 V2 display driver
-  - ESP32-WROOM microcontroller
-  - Built-in USB-C connector
-  - Capacitive touch screen (CST820 controller)
+## Requirements
 
-- JC4827W543R ESP32 Board
-  - 4.82-inch TFT display (540x480 resolution)
-  - ST7789 V2 display driver
-  - ESP32-WROOM microcontroller
-  - Built-in USB-C connector
+- [Visual Studio Code](https://code.visualstudio.com/) with the [PlatformIO](https://platformio.org/) extension
+- A supported CYD board
+- A DHT11 temperature/humidity sensor
 
-## Development Environment Setup
-
-## Required Software
-
-- Visual Studio Code
-- PlatformIO IDE Extension
-- LVGL
-
-## Libraries
-
-```ini
-lib_deps = 
-   bodmer/TFT_eSPI@^2.5.42
-   lvgl/lvgl@^8.3.6
-```
-
-```txt
-project/
-├── src/
-│   ├── main.cpp           # Main program logic
-│   ├── ui/               # Generated UI files from Squareline
-│   │   ├── ui.h
-│   │   ├── ui.c
-│   │   ├── ui_events.cpp  # Custom event handlers
-│   │   └── ui_events.h
-│   └── config/           # Configuration files
-├── platformio.ini        # PlatformIO configuration
-└── README.md
-```
-
-## Display Pin Configurations
-
-### JC2432W328R
-
-```cpp
-#define TFT_MISO 12
-#define TFT_MOSI 13
-#define TFT_SCLK 14
-#define TFT_CS   15
-#define TFT_DC   2
-#define TFT_RST  -1
-#define TFT_BL   27
-// Touch (resistive)
-#define TOUCH_CS 33
-#define TOUCH_IRQ 39
-```
-
-> Note: The pinout above is confirmed for the JC2432W328R (resistive). Some online sources mention pins 21 and 27 may be switched on other models; this template uses the configuration from the [env:jc2432w328r] in `platformio.ini`.
-
-### JC2432W328C
-
-```cpp
-#define TFT_MISO 12
-#define TFT_MOSI 13
-#define TFT_SCLK 14
-#define TFT_CS   15
-#define TFT_DC   2
-#define TFT_RST  -1
-#define TFT_BL   27
-// Touch (capacitive, CST820)
-#define TOUCH_SDA 18
-#define TOUCH_SCL 19
-#define TOUCH_INT 39
-```
-
-> Note: The pinout above is typical for the JC2432W328C (capacitive, CST820). The CST820 touch controller uses I2C. Confirm your board's silkscreen or schematic if you encounter issues.
-
-### JC4827W543R
-
-## Building and Flashing
-
-### 1. Clone the repository
+## Quick start
 
 ```bash
-git clone git@github.com:Makerstore/actuator-controller.git
+git clone https://github.com/Deejpotter/cyd-air-monitor.git
+cd cyd-air-monitor
+pio run -e 2432s028r              # build (change env for your board)
+pio run -e 2432s028r --target upload
+pio device monitor                # serial output at 115200 baud
 ```
 
-### 2. Open in VS Code with PlatformIO
+On first build, `scripts/copy_template.py` copies display config files from `template files/` into `.pio/libdeps/<env>/`. Do not edit files under `.pio/` directly — change the templates and rebuild.
 
-Open the project in Visual Studio Code with the PlatformIO extension installed.
+**Display orientation** varies by board revision. See [docs/DISPLAY_CONFIG.md](docs/DISPLAY_CONFIG.md) for the full matrix and tuning guide.
 
-After installing the required libraries, some files need to be moved to make the project build correctly.
+## Settings UI
 
-The lv_conf.h file needs to be moved from the template folder to sit NEXT to the lvgl folder in the lib folder.
+Tap the **gear icon** on the dashboard to open Settings:
 
-The User_Setup.h file needs to be moved to the TFT_eSPI folder in the lib folder to replace the existing file.
+- **WiFi** — scans for nearby networks, pick an SSID from the dropdown, enter password, and connect. Credentials are saved to NVS and the device auto-reconnects on boot.
+- **Touch Test** — live touch coordinates and a touch dot. On resistive boards, min/max calibration can be adjusted and saved to NVS.
 
-### 3. Build the project
+Settings persist across reboots in ESP32 NVS (Arduino `Preferences` library, namespace `cydmon`). Use **Forget WiFi** on the WiFi screen to clear saved credentials.
+
+## Project structure
+
+```
+src/
+├── main.cpp                    # App entry: sensors, UI, scheduler
+├── TemplateCode.{h,cpp}        # Display, touch, and LVGL setup
+├── MainInterface.{h,cpp}       # Dashboard and screen navigation
+├── WiFiSettingsScreen.{h,cpp}  # WiFi scan, SSID picker, connect
+├── TouchConfigScreen.{h,cpp}   # Touch test and resistive calibration
+├── WiFiConnectionManager.{h,cpp}
+├── SettingsStore.{h,cpp}       # NVS persistence (WiFi, touch cal)
+├── SensorManager.{h,cpp}       # DHT11 polling and change callbacks
+├── PeriodicScheduler.*         # Non-blocking task scheduler
+└── RGBledDriver.{h,cpp}        # On-board RGB LED (CYD)
+
+template files/           # TFT_eSPI and LVGL config (copied at build time)
+platformio.ini            # Board environments and build flags
+scripts/copy_template.py  # Pre-build config copy script
+```
+
+## Choosing your board environment
+
+Set the environment to match your hardware:
 
 ```bash
-pio run
+pio run -e jc2432w328r    # resistive-touch JC2432W328R
+pio run -e jc2432w328c    # capacitive-touch JC2432W328C
+pio run -e 2432s028r      # original ESP32-2432S028R CYD
 ```
 
-### 4. Upload to the device
+Or change `default_envs` in `platformio.ini`.
+
+## Upstream template
+
+Display, touch, and LVGL plumbing come from [Deejpotter/cyd-lvgl-template](https://github.com/Deejpotter/cyd-lvgl-template). To pull in upstream fixes:
 
 ```bash
-pio run --target upload
+git remote add upstream https://github.com/Deejpotter/cyd-lvgl-template.git   # once
+git fetch upstream
+git merge upstream/main    # or rebase, as you prefer
 ```
 
-## UI Modifications
-
-The user interface is built using the provided template files. To modify or extend the UI, edit the template source files in the `src/` directory. Implement any new event handlers or logic in your own `.cpp` files as needed.
-
-### Important Notes
-
-- All custom logic should go in `main.cpp` or separate files
-- Keep the main loop running smoothly for responsive UI
+Resolve conflicts carefully — this repo adds sensor and UI code on top of the template.
 
 ## Troubleshooting
 
-Common issues and solutions:
+**Display blank or garbled** — Confirm you are building for the correct env. Check that `User_Setup.h` was copied (look for `[copy_template]` lines in the build log).
 
-### Display Issues
+**Touch not working** — Resistive and capacitive boards use different envs. Do not mix `jc2432w328r` and `jc2432w328c`.
 
-Ensure correct display driver (ST7789_2) is selected
-Verify pin configurations match the hardware
+**DHT11 reads NaN** — Check wiring and that you are using the DHT pin for your env (see table above). Allow a few seconds after power-on for the first valid reading.
 
-### Build Issues
-
-Check PlatformIO.ini configuration
-Verify library versions are compatible
+**LVGL layout clipped** — Rotation/resolution must match between TFT_eSPI (`User_Setup.h`) and `TemplateCode`. Rebuild after changing templates.
 
 ## Resources
 
-### JC2432W328R links
+- [ESP32 Cheap Yellow Display (community hub)](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display)
+- [CYD pinout (ESP32-2432S028R)](https://randomnerdtutorials.com/esp32-cheap-yellow-display-cyd-pinout-esp32-2432s028r/)
+- [SquareLine CYD template discussion](https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display/discussions/102)
+- [LVGL documentation](https://docs.lvgl.io/)
 
-- Almost correct pinout (pins 21 and 27 are switched): [ESP32 Cheap Yellow Display (CYD) Pinout (ESP32-2432S028R) | Random Nerd Tutorials](https://randomnerdtutorials.com/esp32-cheap-yellow-display-cyd-pinout-esp32-2432s028r/#speaker)
-- This specific model of device (not quite accurate): <https://github.com/maxpill/JC2432W328>
-- Squareline: <https://squareline.io/downloads>
-- Cheap yellow display github: <https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display/tree/main>
-- Link to Squarline CYD template: <https://github.com/witnessmenow/ESP32-Cheap-Yellow-Display/discussions/102>
-- Reddit discussion also for this specific model of device: <https://www.reddit.com/r/esp32/comments/1dy5k11/working_cyd_jc2432w328_display_240x320_28_usbc/?rdt=34968>
-- ESP32 Marauder CYD port: maxpill/ESP32-Marauder-JC2432W328-Cheap-Yellow-Display: JC2432W328 ESP32Marauder Cheap Yellow Display
-- Case 1: [GUITION JC2432W328C cover by Matej's Workshop | Download free STL model | Printables.com](https://www.printables.com/model/913023-guition-jc2432w328c-cover/files)
-- Case 2: [ESP32 2.8inch JC2432W328 Case by GrafMax17 - Thingiverse](https://www.thingiverse.com/thing:6892431)
+## License
 
-### JC2432W328C links
-
-- Official/Community documentation: [maxpill/JC2432W328 GitHub](https://github.com/maxpill/JC2432W328)
-- Community discussion and working code: [Reddit: Working CYD JC2432W328 Display 240x320 2.8" USB-C](https://www.reddit.com/r/esp32/comments/1dy5k11/working_cyd_jc2432w328_display_240x320_28_usbc/)
-- Product listing and specs: [AliExpress JC2432W328C](https://aliexpress.com/item/1005006729707613.html)
-- ST7789 display driver datasheet: [ST7789 PDF](https://www.rhydolabz.com/documents/33/ST7789.pdf)
-- CST820 touch controller info: [CST820 datasheet (PDF)](https://datasheet.lcsc.com/lcsc/1811141810_FocalTech-Systems-CST820S_C181837.pdf)
-
-### JC4827W543R links
-
-## Original Template Readme
-
-Extract the zip to a folder where you wish to keep your new project.
-(You may want to keep a folder just for the template and duplicate that for each new project).
-In Visual Studio Code with Platformio, open the template folder.
-When you first open the folder containing this template, platformio will load the necessary libraries.
-
-## Template File Usage
-
-The template files provided in this repository are designed to help you quickly set up a working LVGL project for supported ESP32 display boards. Use the files in the `template files/` directory as a starting point for your own project.
-
-### Steps
-
-1. Copy the necessary template files (such as `main.cpp`, `lv_conf.h`, `User_Setup.h`, etc.) from the `template files/` directory into your project as needed.
-2. Adjust pin assignments and configuration in `platformio.ini` and the template files to match your hardware.
-3. Build and upload the project using PlatformIO.
-
-Refer to comments in the template files for further customization and extension.
+See the upstream [cyd-lvgl-template](https://github.com/Deejpotter/cyd-lvgl-template) repository for licensing of the original template code.

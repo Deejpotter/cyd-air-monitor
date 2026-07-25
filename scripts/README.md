@@ -1,15 +1,13 @@
 PlatformIO copy templates helper
 
-This folder contains a simple SCons/PlatformIO extra script which copies files from
-
-    template files/
-
-into your project's .pio/libdeps/<env> library directories. It is run automatically as a pre-build step through the `extra_scripts` setting in `platformio.ini`.
+Used by **cyd-air-monitor** (and derived from [cyd-lvgl-template](https://github.com/Deejpotter/cyd-lvgl-template)). This pre-build script copies display configuration into `.pio/libdeps/<env>/`.
 
 Per-environment overrides
 
-If you have files specific to an environment (for example, `jc2432w328c`), place them under
+Place board-specific files under folders named for the PlatformIO environment, for example:
 
+    template files/2432s028r/
+    template files/jc2432w328r/
     template files/jc2432w328c/
 
 The script will prefer files from that folder for the env with the same name.

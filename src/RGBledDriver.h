@@ -1,11 +1,14 @@
 #ifndef _RGB_LED_DRIVER_H_
 #define _RGB_LED_DRIVER_H_
 
+#include <Arduino.h>
+
 void ChangeRGBColor(uint32_t color);            // uses 32-bit color code such as 0xFFd251
 void setColor(uint8_t R, uint8_t G, uint8_t B); // uses individual 8-bit values for R, G, and B
 void initRGBled();
 uint32_t randomColor();
 
+// RGB LED color constants
 #define RGB_COLOR_1 0xFF0000
 #define RGB_COLOR_2 0x00FF00
 #define RGB_COLOR_3 0x0000FF

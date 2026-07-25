@@ -6,6 +6,38 @@
 
 #include "TemplateCode.h"
 
+namespace {
+
+#if defined(MODEL_JC2432W328R) || defined(MODEL_2432S028R)
+void mapResistivePoint(int32_t rawX, int32_t rawY, const TouchCalibration &cal, int32_t &outX, int32_t &outY)
+{
+  int32_t mx = map(rawX, cal.xMin, cal.xMax, 0, SCREEN_WIDTH - 1);
+  int32_t my = map(rawY, cal.yMin, cal.yMax, 0, SCREEN_HEIGHT - 1);
+#if TOUCH_MIRROR_X
+  mx = (SCREEN_WIDTH - 1) - mx;
+#endif
+#if TOUCH_MIRROR_Y
+  my = (SCREEN_HEIGHT - 1) - my;
+#endif
+  outX = mx;
+  outY = my;
+}
+#endif
+
+void clampTouchPoint(int32_t &x, int32_t &y)
+{
+  if (x < 0)
+    x = 0;
+  if (x > (int32_t)SCREEN_WIDTH - 1)
+    x = SCREEN_WIDTH - 1;
+  if (y < 0)
+    y = 0;
+  if (y > (int32_t)SCREEN_HEIGHT - 1)
+    y = SCREEN_HEIGHT - 1;
+}
+
+} // namespace
+
 // Initialize static members
 TemplateCode *TemplateCode::instance = nullptr;
 lv_disp_draw_buf_t TemplateCode::draw_buf;
@@ -19,10 +51,16 @@ TemplateCode::TemplateCode()
 #elif defined(MODEL_JC2432W328C)
     : ts(),
       tft(SCREEN_WIDTH, SCREEN_HEIGHT)
+#elif defined(MODEL_2432S028R)
+    : mySpi(VSPI),
+      ts(XPT2046_CS, XPT2046_IRQ),
+      tft(SCREEN_WIDTH, SCREEN_HEIGHT)
 #else
     : tft(SCREEN_WIDTH, SCREEN_HEIGHT)
 #endif
 {
+  SettingsStore defaults;
+  touchCal = defaults.defaultTouchCal();
 }
 
 TemplateCode &TemplateCode::getInstance()
@@ -48,12 +86,88 @@ bool TemplateCode::begin()
   return true;
 }
 
+void TemplateCode::applyTouchCalibration(const TouchCalibration &cal)
+{
+  touchCal = cal;
+}
+
+bool TemplateCode::isResistiveTouch() const
+{
+#if defined(MODEL_JC2432W328R) || defined(MODEL_2432S028R)
+  return true;
+#else
+  return false;
+#endif
+}
+
+const char *TemplateCode::touchTypeName() const
+{
+#if defined(MODEL_JC2432W328C)
+  return "Capacitive (CST820)";
+#elif defined(MODEL_JC2432W328R)
+  return "Resistive (XPT2046)";
+#elif defined(MODEL_2432S028R)
+  return "Resistive (XPT2046)";
+#else
+  return "Unknown";
+#endif
+}
+
+bool TemplateCode::sampleTouch(TouchSample &sample)
+{
+  sample = {};
+
+#if defined(MODEL_JC2432W328R) || defined(MODEL_2432S028R)
+  if (!(ts.tirqTouched() && ts.touched()))
+    return false;
+
+  TS_Point p = ts.getPoint();
+  sample.pressed = true;
+  sample.rawX = p.x;
+  sample.rawY = p.y;
+  mapResistivePoint(p.x, p.y, touchCal, sample.mappedX, sample.mappedY);
+  clampTouchPoint(sample.mappedX, sample.mappedY);
+  return true;
+#endif
+
+#if defined(MODEL_JC2432W328C)
+  TOUCHINFO ti = {};
+  if (!ts.getSamples(&ti) || ti.count == 0)
+    return false;
+
+  sample.pressed = true;
+  sample.rawX = ti.x[0];
+  sample.rawY = ti.y[0];
+
+#if CAP_TOUCH_NATIVE_LANDSCAPE
+  sample.mappedX = (int32_t)ti.y[0];
+  sample.mappedY = (int32_t)(PANEL_WIDTH - 1) - (int32_t)ti.x[0];
+#else
+  sample.mappedX = (int32_t)ti.x[0];
+  sample.mappedY = (int32_t)ti.y[0];
+#endif
+#if TOUCH_MIRROR_X
+  sample.mappedX = (SCREEN_WIDTH - 1) - sample.mappedX;
+#endif
+#if TOUCH_MIRROR_Y
+  sample.mappedY = (SCREEN_HEIGHT - 1) - sample.mappedY;
+#endif
+  clampTouchPoint(sample.mappedX, sample.mappedY);
+  return true;
+#endif
+
+  return false;
+}
+
 void TemplateCode::initializeHardware()
 {
   initRGBled();
   ChangeRGBColor(RGB_COLOR_1);
 
 #if defined(MODEL_JC2432W328R)
+  mySpi.begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
+#endif
+#if defined(MODEL_2432S028R)
   mySpi.begin(XPT2046_CLK, XPT2046_MISO, XPT2046_MOSI, XPT2046_CS);
 #endif
 }
@@ -66,17 +180,15 @@ void TemplateCode::initializeLVGL()
 
 void TemplateCode::setupTouchscreen()
 {
-#if defined(MODEL_JC2432W328R)
+#if defined(MODEL_JC2432W328R) || defined(MODEL_2432S028R)
   ts.begin(mySpi);
-  ts.setRotation(TFT_ROTATION);
+  ts.setRotation(TOUCH_ROTATION);
 #endif
 #if defined(MODEL_JC2432W328C)
-  // Initialize BitBank capacitive touch with I2C pins + reset/irq
   ts.init(CST820_SDA, CST820_SCL, CST820_RST, CST820_INT);
-
-  // Map TFT_ROTATION (0..3) to degrees for setOrientation
+#if !CAP_TOUCH_NATIVE_LANDSCAPE
   int oriDeg = 0;
-  switch (TFT_ROTATION & 0x3)
+  switch (LVGL_ROTATION & 0x3)
   {
   case 0:
     oriDeg = 0;
@@ -92,7 +204,10 @@ void TemplateCode::setupTouchscreen()
     break;
   }
   ts.setOrientation(oriDeg, SCREEN_WIDTH, SCREEN_HEIGHT);
-  Serial.printf("BBCapTouch init: sensor=%d orient=%d %ux%u\n", ts.sensorType(), oriDeg, (unsigned)SCREEN_WIDTH, (unsigned)SCREEN_HEIGHT);
+#endif
+  Serial.printf("BBCapTouch init: sensor=%d native_landscape=%d %ux%u\n",
+                ts.sensorType(), CAP_TOUCH_NATIVE_LANDSCAPE,
+                (unsigned)SCREEN_WIDTH, (unsigned)SCREEN_HEIGHT);
   Serial.flush();
 #endif
 }
@@ -100,7 +215,16 @@ void TemplateCode::setupTouchscreen()
 void TemplateCode::setupDisplay()
 {
   tft.begin();
-  tft.setRotation(TFT_ROTATION);
+  tft.setRotation(TFT_DISPLAY_ROTATION);
+#ifdef TFT_MADCTL_OVERRIDE
+  tft.writecommand(TFT_MADCTL);
+  tft.writedata(TFT_MADCTL_OVERRIDE);
+#endif
+#if TFT_INVERT_DISPLAY
+  tft.invertDisplay(true);
+#else
+  tft.invertDisplay(false);
+#endif
 
   static lv_disp_drv_t disp_drv;
   lv_disp_drv_init(&disp_drv);
@@ -131,91 +255,37 @@ void TemplateCode::flushDisplay(lv_disp_drv_t *disp_drv, const lv_area_t *area, 
   lv_disp_flush_ready(disp_drv);
 }
 
-#if defined(MODEL_JC2432W328R)
+#if defined(MODEL_JC2432W328R) || defined(MODEL_2432S028R)
 void TemplateCode::readTouchpad(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 {
   auto &display = getInstance();
-  bool touched = (display.ts.tirqTouched() && display.ts.touched());
-
-  if (!touched)
+  TouchSample sample;
+  if (!display.sampleTouch(sample))
   {
     data->state = LV_INDEV_STATE_REL;
     return;
   }
 
-  TS_Point p = display.ts.getPoint();
-  // Map raw ADC coords into 0..(W-1) / 0..(H-1)
-  int32_t mappedX = map(p.x, TOUCH_X_MIN, TOUCH_X_MAX, 0, SCREEN_WIDTH - 1);
-  int32_t mappedY = map(p.y, TOUCH_Y_MIN, TOUCH_Y_MAX, 0, SCREEN_HEIGHT - 1);
-
-  // Observation: this board's resistive wiring returns coordinates that are
-  // inverted on both axes compared to the LV coordinate frame (top-left -> max,max).
-  // Correct by inverting both axes so physical top-left -> (0,0) in LV.
-  int32_t touchX = (SCREEN_WIDTH - 1) - mappedX;
-  int32_t touchY = (SCREEN_HEIGHT - 1) - mappedY;
-
-  // Clamp to valid ranges
-  if (touchX < 0)
-    touchX = 0;
-  if (touchX > (int32_t)SCREEN_WIDTH - 1)
-    touchX = SCREEN_WIDTH - 1;
-  if (touchY < 0)
-    touchY = 0;
-  if (touchY > (int32_t)SCREEN_HEIGHT - 1)
-    touchY = SCREEN_HEIGHT - 1;
-
   data->state = LV_INDEV_STATE_PR;
-  data->point.x = (lv_coord_t)touchX;
-  data->point.y = (lv_coord_t)touchY;
-
-  // Throttled debug output for resistive touch (minimal CPU impact)
-  {
-    static uint32_t lastDbgR = 0;
-    uint32_t now = millis();
-    if (now - lastDbgR > 250)
-    {
-      lastDbgR = now;
-      Serial.printf("XPT raw:%u,%u -> Mapped:%ld,%ld -> LV:%ld,%ld\n", p.x, p.y, (long)mappedX, (long)mappedY, (long)touchX, (long)touchY);
-      Serial.flush();
-    }
-  }
+  data->point.x = (lv_coord_t)sample.mappedX;
+  data->point.y = (lv_coord_t)sample.mappedY;
 }
 #endif
+
 #if defined(MODEL_JC2432W328C)
 void TemplateCode::readTouchpad(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
 {
   auto &display = getInstance();
-  TOUCHINFO ti = {};
-  if (display.ts.getSamples(&ti) && ti.count > 0)
-  {
-    // BBCapTouch already applies setOrientation() so coords match LV frame
-    int sx = (int)ti.x[0];
-    int sy = (int)ti.y[0];
-    if (sx < 0)
-      sx = 0;
-    if (sx >= (int)SCREEN_WIDTH)
-      sx = SCREEN_WIDTH - 1;
-    if (sy < 0)
-      sy = 0;
-    if (sy >= (int)SCREEN_HEIGHT)
-      sy = SCREEN_HEIGHT - 1;
-    data->state = LV_INDEV_STATE_PR;
-    data->point.x = sx;
-    data->point.y = sy;
-    // Throttled minimal debug
-    static uint32_t lastDbgC = 0;
-    uint32_t now = millis();
-    if (now - lastDbgC > 250)
-    {
-      lastDbgC = now;
-      Serial.printf("BBCapTouch sample: %u -> LV:%d,%d\n", ti.count, data->point.x, data->point.y);
-      Serial.flush();
-    }
-  }
-  else
+  TouchSample sample;
+  if (!display.sampleTouch(sample))
   {
     data->state = LV_INDEV_STATE_REL;
+    return;
   }
+
+  data->state = LV_INDEV_STATE_PR;
+  data->point.x = (lv_coord_t)sample.mappedX;
+  data->point.y = (lv_coord_t)sample.mappedY;
 }
 #endif
 

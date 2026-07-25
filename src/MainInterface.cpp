@@ -1,133 +1,217 @@
-/**
- * Last Updated: 14/11/25
- * Author: Daniel Potter
- *
- * Description:
- * Implements a simple scrollable interface with temperature display.
- * Optimized for portrait orientation (320x240).
- *
- * LVGL Basics:
- * - lv_obj_t: Base type for all LVGL widgets
- * - Styles: Control appearance of objects
- * - Flex Layout: Modern flexible box layout system
- *
- * Layout Concepts:
- * - Fixed header: Always visible at top
- * - Scrollable content: Vertically scrollable area below header
- * - Flex layout: Automatic vertical arrangement of elements
- *
- * UI/UX Principles:
- * - Clear visual hierarchy
- * - Consistent spacing
- * - Readable typography
- */
-
 #include "MainInterface.h"
+#include "SettingsStore.h"
+#include "TemplateCode.h"
+#include "TouchConfigScreen.h"
+#include "WiFiConnectionManager.h"
+#include "WiFiSettingsScreen.h"
 #include <stdio.h>
 
-/**
- * Constructor: Initializes all UI element pointers to nullptr
- * This prevents undefined behavior if accessed before initialization
- */
-MainInterface::MainInterface()
+namespace
 {
-  mainScreen = nullptr;
-  headerContainer = nullptr;
-  headerLabel = nullptr;
-  tempLabel = nullptr;
+constexpr int SCREEN_W = 320;
+constexpr int SCREEN_H = 240;
+constexpr int HEADER_H = 40;
+} // namespace
+
+MainInterface::MainInterface()
+    : settings(nullptr), display(nullptr), wifi(nullptr),
+      activeScreen(ActiveScreen::Dashboard), dashboardScreen(nullptr),
+      settingsMenuScreen(nullptr), headerContainer(nullptr), headerLabel(nullptr),
+      tempLabel(nullptr), humidityLabel(nullptr), wifiStatusLabel(nullptr),
+      wifiScreen(nullptr), touchScreen(nullptr)
+{
 }
 
-/**
- * Destructor: Cleanup handled automatically by LVGL
- * LVGL's parent-child relationship manages memory
- */
 MainInterface::~MainInterface()
 {
-  // LVGL handles cleanup through parent-child relationships
+  delete wifiScreen;
+  delete touchScreen;
 }
 
-/**
- * Main initialization function
- * Creates and configures all UI elements in the proper hierarchy
- */
-void MainInterface::init()
+void MainInterface::init(SettingsStore *store, TemplateCode *displayCode, WiFiConnectionManager *wifiMgr)
 {
-  // Create main screen container
-  mainScreen = lv_obj_create(NULL);
-  // Set portrait orientation (240x320)
-  lv_obj_set_size(mainScreen, 240, 320);
-  // Set dark theme background
-  lv_obj_set_style_bg_color(mainScreen, lv_color_hex(0x000000), LV_PART_MAIN);
-  // Remove default padding
-  lv_obj_set_style_pad_all(mainScreen, 0, 0);
+  settings = store;
+  display = displayCode;
+  wifi = wifiMgr;
 
-  // Configure flex layout for vertical arrangement
-  // Similar to CSS flexbox with column direction
-  lv_obj_set_layout(mainScreen, LV_LAYOUT_FLEX);
-  lv_obj_set_flex_flow(mainScreen, LV_FLEX_FLOW_COLUMN);
+  if (display && settings)
+    display->applyTouchCalibration(settings->loadTouchCal());
 
-  // Create UI components in order (top to bottom)
-  createHeader();
+  wifiScreen = new WiFiSettingsScreen();
+  touchScreen = new TouchConfigScreen();
 
-  // Create temperature display directly on mainScreen
-  tempLabel = lv_label_create(mainScreen);
+  wifiScreen->init(settings, wifi);
+  touchScreen->init(settings, display);
+
+  wifiScreen->setBackCallback([this]() { showScreen(ActiveScreen::SettingsMenu); });
+  touchScreen->setBackCallback([this]() { showScreen(ActiveScreen::SettingsMenu); });
+
+  if (wifi)
+  {
+    wifi->onStatusChange([this](WiFiConnStatus, const String &detail)
+                         {
+      if (wifiStatusLabel)
+      {
+        const char *text = detail.length() ? detail.c_str() : wifi->statusText().c_str();
+        lv_label_set_text(wifiStatusLabel, text);
+      }
+      if (activeScreen == ActiveScreen::WiFi)
+        wifiScreen->setStatusText(wifi->statusText().c_str()); });
+  }
+
+  createDashboard();
+  createSettingsMenu();
+  showScreen(ActiveScreen::Dashboard);
+}
+
+void MainInterface::createHeader(lv_obj_t *parent, const char *title, bool showSettingsBtn)
+{
+  lv_obj_t *header = lv_obj_create(parent);
+  lv_obj_set_size(header, SCREEN_W, HEADER_H);
+  lv_obj_set_style_bg_color(header, lv_color_hex(0x1E1E1E), LV_PART_MAIN);
+  lv_obj_set_style_border_width(header, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(header, 4, LV_PART_MAIN);
+  lv_obj_clear_flag(header, LV_OBJ_FLAG_SCROLLABLE);
+
+  if (showSettingsBtn)
+  {
+    lv_obj_t *settingsBtn = lv_btn_create(header);
+    lv_obj_set_size(settingsBtn, 56, 28);
+    lv_obj_align(settingsBtn, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_add_event_cb(settingsBtn, onSettingsBtnClicked, LV_EVENT_CLICKED, this);
+    lv_obj_t *settingsLbl = lv_label_create(settingsBtn);
+    lv_label_set_text(settingsLbl, LV_SYMBOL_SETTINGS);
+    lv_obj_center(settingsLbl);
+  }
+
+  lv_obj_t *titleLbl = lv_label_create(header);
+  lv_label_set_text(titleLbl, title);
+  lv_obj_set_style_text_color(titleLbl, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+  lv_obj_align(titleLbl, LV_ALIGN_CENTER, 0, 0);
+}
+
+void MainInterface::createDashboard()
+{
+  dashboardScreen = lv_obj_create(NULL);
+  lv_obj_set_size(dashboardScreen, SCREEN_W, SCREEN_H);
+  lv_obj_set_style_bg_color(dashboardScreen, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_pad_all(dashboardScreen, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(dashboardScreen, LV_OBJ_FLAG_SCROLLABLE);
+
+  headerContainer = lv_obj_create(dashboardScreen);
+  lv_obj_set_size(headerContainer, SCREEN_W, HEADER_H);
+  lv_obj_set_style_bg_color(headerContainer, lv_color_hex(0x1E1E1E), LV_PART_MAIN);
+  lv_obj_set_style_border_width(headerContainer, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(headerContainer, 4, LV_PART_MAIN);
+  lv_obj_clear_flag(headerContainer, LV_OBJ_FLAG_SCROLLABLE);
+
+  headerLabel = lv_label_create(headerContainer);
+  lv_label_set_text(headerLabel, "Air Monitor");
+  lv_obj_set_style_text_color(headerLabel, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+  lv_obj_align(headerLabel, LV_ALIGN_LEFT_MID, 4, 0);
+
+  lv_obj_t *settingsBtn = lv_btn_create(headerContainer);
+  lv_obj_set_size(settingsBtn, 56, 28);
+  lv_obj_align(settingsBtn, LV_ALIGN_RIGHT_MID, 0, 0);
+  lv_obj_add_event_cb(settingsBtn, onSettingsBtnClicked, LV_EVENT_CLICKED, this);
+  lv_obj_t *settingsLbl = lv_label_create(settingsBtn);
+  lv_label_set_text(settingsLbl, LV_SYMBOL_SETTINGS);
+  lv_obj_center(settingsLbl);
+
+  tempLabel = lv_label_create(dashboardScreen);
   lv_obj_set_style_text_font(tempLabel, &lv_font_montserrat_28, 0);
   lv_obj_set_style_text_color(tempLabel, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
   lv_label_set_text(tempLabel, "Temperature:\n--.-°C");
-  lv_obj_align(tempLabel, LV_ALIGN_TOP_MID, 0, 50);
+  lv_obj_align(tempLabel, LV_ALIGN_TOP_MID, 0, 56);
 
-  // Create humidity display directly on mainScreen
-  humidityLabel = lv_label_create(mainScreen);
+  humidityLabel = lv_label_create(dashboardScreen);
   lv_obj_set_style_text_font(humidityLabel, &lv_font_montserrat_28, 0);
   lv_obj_set_style_text_color(humidityLabel, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
   lv_label_set_text(humidityLabel, "Humidity:\n--.-%");
-  lv_obj_align_to(humidityLabel, tempLabel, LV_ALIGN_OUT_BOTTOM_MID, 0, 20);
+  lv_obj_align_to(humidityLabel, tempLabel, LV_ALIGN_OUT_BOTTOM_MID, 0, 16);
 
-  // Activate the screen
-  lv_scr_load(mainScreen);
+  wifiStatusLabel = lv_label_create(dashboardScreen);
+  lv_obj_set_style_text_color(wifiStatusLabel, lv_color_hex(0x666666), LV_PART_MAIN);
+  lv_label_set_text(wifiStatusLabel, wifi ? wifi->statusText().c_str() : "WiFi: --");
+  lv_obj_align(wifiStatusLabel, LV_ALIGN_BOTTOM_MID, 0, -8);
 }
 
-/**
- * Creates the fixed header area
- * Header contains title and remains at top of screen
- */
-void MainInterface::createHeader()
+void MainInterface::createSettingsMenu()
 {
-  // Create header container with fixed height
-  headerContainer = lv_obj_create(mainScreen);
-  lv_obj_set_size(headerContainer, 240, 40);
+  settingsMenuScreen = lv_obj_create(NULL);
+  lv_obj_set_size(settingsMenuScreen, SCREEN_W, SCREEN_H);
+  lv_obj_set_style_bg_color(settingsMenuScreen, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_pad_all(settingsMenuScreen, 0, LV_PART_MAIN);
+  lv_obj_clear_flag(settingsMenuScreen, LV_OBJ_FLAG_SCROLLABLE);
 
-  // Style header with dark theme
-  lv_obj_set_style_bg_color(headerContainer, lv_color_hex(0x1E1E1E), LV_PART_MAIN);
-  lv_obj_set_style_pad_all(headerContainer, 5, 0);
+  createHeader(settingsMenuScreen, "Settings", false);
 
-  // Create and configure header text
-  headerLabel = lv_label_create(headerContainer);
-  lv_label_set_text(headerLabel, "Temperature Monitor");
-  // Center align the header text
-  lv_obj_align(headerLabel, LV_ALIGN_CENTER, 0, 0);
-  // Set text color to white for contrast
-  lv_obj_set_style_text_color(headerLabel, lv_color_hex(0xFFFFFF), LV_PART_MAIN);
+  lv_obj_t *content = lv_obj_create(settingsMenuScreen);
+  lv_obj_set_size(content, SCREEN_W, SCREEN_H - HEADER_H);
+  lv_obj_align(content, LV_ALIGN_BOTTOM_MID, 0, 0);
+  lv_obj_set_style_bg_color(content, lv_color_hex(0x000000), LV_PART_MAIN);
+  lv_obj_set_style_border_width(content, 0, LV_PART_MAIN);
+  lv_obj_set_style_pad_all(content, 12, LV_PART_MAIN);
+  lv_obj_set_flex_flow(content, LV_FLEX_FLOW_COLUMN);
+  lv_obj_set_flex_align(content, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+  lv_obj_t *wifiBtn = lv_btn_create(content);
+  lv_obj_set_size(wifiBtn, SCREEN_W - 32, 40);
+  lv_obj_add_event_cb(wifiBtn, onMenuWifiClicked, LV_EVENT_CLICKED, this);
+  lv_obj_t *wifiLbl = lv_label_create(wifiBtn);
+  lv_label_set_text(wifiLbl, LV_SYMBOL_WIFI "  WiFi");
+  lv_obj_center(wifiLbl);
+
+  lv_obj_t *touchBtn = lv_btn_create(content);
+  lv_obj_set_size(touchBtn, SCREEN_W - 32, 40);
+  lv_obj_add_event_cb(touchBtn, onMenuTouchClicked, LV_EVENT_CLICKED, this);
+  lv_obj_t *touchLbl = lv_label_create(touchBtn);
+  lv_label_set_text(touchLbl, LV_SYMBOL_EDIT "  Touch Test");
+  lv_obj_center(touchLbl);
+
+  lv_obj_t *backBtn = lv_btn_create(content);
+  lv_obj_set_size(backBtn, SCREEN_W - 32, 36);
+  lv_obj_add_event_cb(backBtn, onMenuBackClicked, LV_EVENT_CLICKED, this);
+  lv_obj_t *backLbl = lv_label_create(backBtn);
+  lv_label_set_text(backLbl, "Back to Dashboard");
+  lv_obj_center(backLbl);
 }
 
-/**
- * Creates the scrollable content area
- * This area fills the remaining space below header
- * and enables vertical scrolling
- */
-
-/**
- * Update function called in main loop
- * Will be implemented later with sensor data
- */
+void MainInterface::showScreen(ActiveScreen screen)
+{
+  activeScreen = screen;
+  switch (screen)
+  {
+  case ActiveScreen::Dashboard:
+    lv_scr_load(dashboardScreen);
+    break;
+  case ActiveScreen::SettingsMenu:
+    lv_scr_load(settingsMenuScreen);
+    break;
+  case ActiveScreen::WiFi:
+    wifiScreen->show();
+    break;
+  case ActiveScreen::Touch:
+    touchScreen->show();
+    break;
+  }
+}
 
 void MainInterface::update()
 {
-  // Placeholder: update logic if needed
+  if (activeScreen == ActiveScreen::WiFi)
+    wifiScreen->update();
+  else if (activeScreen == ActiveScreen::Touch)
+    touchScreen->update();
+
+  if (wifiStatusLabel && wifi && activeScreen == ActiveScreen::Dashboard)
+    lv_label_set_text(wifiStatusLabel, wifi->statusText().c_str());
 }
 
 void MainInterface::setTemperature(float tempC)
 {
+  if (!tempLabel)
+    return;
   char buf[32];
   snprintf(buf, sizeof(buf), "Temperature:\n%.1f°C", tempC);
   lv_label_set_text(tempLabel, buf);
@@ -135,7 +219,37 @@ void MainInterface::setTemperature(float tempC)
 
 void MainInterface::setHumidity(float humidity)
 {
+  if (!humidityLabel)
+    return;
   char buf[32];
   snprintf(buf, sizeof(buf), "Humidity:\n%.1f%%", humidity);
   lv_label_set_text(humidityLabel, buf);
+}
+
+void MainInterface::onSettingsBtnClicked(lv_event_t *e)
+{
+  auto *self = static_cast<MainInterface *>(lv_event_get_user_data(e));
+  if (self)
+    self->showScreen(ActiveScreen::SettingsMenu);
+}
+
+void MainInterface::onMenuWifiClicked(lv_event_t *e)
+{
+  auto *self = static_cast<MainInterface *>(lv_event_get_user_data(e));
+  if (self)
+    self->showScreen(ActiveScreen::WiFi);
+}
+
+void MainInterface::onMenuTouchClicked(lv_event_t *e)
+{
+  auto *self = static_cast<MainInterface *>(lv_event_get_user_data(e));
+  if (self)
+    self->showScreen(ActiveScreen::Touch);
+}
+
+void MainInterface::onMenuBackClicked(lv_event_t *e)
+{
+  auto *self = static_cast<MainInterface *>(lv_event_get_user_data(e));
+  if (self)
+    self->showScreen(ActiveScreen::Dashboard);
 }

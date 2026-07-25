@@ -1,59 +1,70 @@
 // MainInterface.h
 /**
  * MainInterface.h
- * Last Updated: March 17, 2025
+ * Last Updated: July 2026
  * Author: Daniel Potter
  *
- * Description:
- * This header file defines the MainInterface class which manages a simple
- * scrollable interface with temperature display. Designed for portrait orientation
- * with a fixed header and scrollable content area.
- *
- * LVGL Layout Concepts:
- * - Flex Layout: Modern flexible box layout system
- * - Scrolling: Native LVGL scrolling support
- * - Containers: Parent-child widget relationship
- *
- * UI/UX Principles:
- * - Fixed header for consistent navigation
- * - Scrollable content for expandability
- * - Clear visual hierarchy
+ * Dashboard UI with navigation to settings screens (WiFi, touch test).
  */
 
 #ifndef MAIN_INTERFACE_H
 #define MAIN_INTERFACE_H
 
+#include <functional>
 #include <lvgl.h>
-#include <string>
 
-using std::string;
+class SettingsStore;
+class TemplateCode;
+class WiFiConnectionManager;
+class WiFiSettingsScreen;
+class TouchConfigScreen;
 
 class MainInterface
 {
-
-private:
-  // UI Containers
-  lv_obj_t *mainScreen;
-  lv_obj_t *headerContainer;
-
-  // Display Elements
-  lv_obj_t *headerLabel;
-  lv_obj_t *tempLabel;
-  lv_obj_t *humidityLabel;
-
-  // Helper Methods
-  void createHeader();
-
 public:
   MainInterface();
   ~MainInterface();
 
-  void init();
+  void init(SettingsStore *store, TemplateCode *display, WiFiConnectionManager *wifi);
   void update();
 
-  // Methods to update sensor values
   void setTemperature(float tempC);
   void setHumidity(float humidity);
+
+private:
+  enum class ActiveScreen
+  {
+    Dashboard,
+    SettingsMenu,
+    WiFi,
+    Touch
+  };
+
+  SettingsStore *settings;
+  TemplateCode *display;
+  WiFiConnectionManager *wifi;
+  ActiveScreen activeScreen;
+
+  lv_obj_t *dashboardScreen;
+  lv_obj_t *settingsMenuScreen;
+  lv_obj_t *headerContainer;
+  lv_obj_t *headerLabel;
+  lv_obj_t *tempLabel;
+  lv_obj_t *humidityLabel;
+  lv_obj_t *wifiStatusLabel;
+
+  WiFiSettingsScreen *wifiScreen;
+  TouchConfigScreen *touchScreen;
+
+  void createDashboard();
+  void createSettingsMenu();
+  void createHeader(lv_obj_t *parent, const char *title, bool showSettingsBtn);
+  void showScreen(ActiveScreen screen);
+
+  static void onSettingsBtnClicked(lv_event_t *e);
+  static void onMenuWifiClicked(lv_event_t *e);
+  static void onMenuTouchClicked(lv_event_t *e);
+  static void onMenuBackClicked(lv_event_t *e);
 };
 
 #endif // MAIN_INTERFACE_H

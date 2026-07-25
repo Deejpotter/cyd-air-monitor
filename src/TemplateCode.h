@@ -15,10 +15,12 @@
 #include <XPT2046_Touchscreen.h>
 #elif defined(MODEL_JC2432W328C)
 #include <bb_captouch.h>
+#elif defined(MODEL_2432S028R)
+#include <XPT2046_Touchscreen.h>
 #endif
 #include "RGBledDriver.h"
-
-// Pin mapping via PlatformIO build flags (prefer PIO-defined macros)
+#include "DisplayConfig.h"
+#include "SettingsStore.h"
 #if defined(MODEL_JC2432W328R)
 // Resistive (XPT2046) pins
 #ifndef XPT2046_CS
@@ -58,7 +60,82 @@
 #endif
 #endif // MODEL_JC2432W328R
 
-// Capacitive (CST820) pins
+// 2432S028R has separate touch SPI bus (different from display SPI)
+#if defined(MODEL_2432S028R)
+// Resistive (XPT2046) pins - separate SPI bus
+#ifndef XPT2046_CS
+#ifdef TOUCH_CS
+#define XPT2046_CS TOUCH_CS
+#else
+#define XPT2046_CS 33
+#endif
+#endif
+#ifndef XPT2046_IRQ
+#ifdef TOUCH_IRQ
+#define XPT2046_IRQ TOUCH_IRQ
+#else
+#define XPT2046_IRQ 36
+#endif
+#endif
+#ifndef XPT2046_CLK
+#ifdef TOUCH_CLK
+#define XPT2046_CLK TOUCH_CLK
+#else
+#define XPT2046_CLK 25
+#endif
+#endif
+#ifndef XPT2046_MISO
+#ifdef TOUCH_MISO
+#define XPT2046_MISO TOUCH_MISO
+#else
+#define XPT2046_MISO 39
+#endif
+#endif
+#ifndef XPT2046_MOSI
+#ifdef TOUCH_MOSI
+#define XPT2046_MOSI TOUCH_MOSI
+#else
+#define XPT2046_MOSI 32
+#endif
+#endif
+#endif // MODEL_2432S028R
+
+// Pin mapping via PlatformIO build flags (prefer PIO-defined macros)
+#if defined(MODEL_JC2432W328R)
+// Touch Calibration Values (overridable via PlatformIO build flags)
+// Define TOUCH_X_MIN, TOUCH_X_MAX, TOUCH_Y_MIN, TOUCH_Y_MAX in platformio.ini to customize.
+// Defaults match common JC2432W328R panels.
+#ifndef TOUCH_X_MIN
+#define TOUCH_X_MIN 200
+#endif
+#ifndef TOUCH_X_MAX
+#define TOUCH_X_MAX 3700
+#endif
+#ifndef TOUCH_Y_MIN
+#define TOUCH_Y_MIN 240
+#endif
+#ifndef TOUCH_Y_MAX
+#define TOUCH_Y_MAX 3800
+#endif
+#endif
+
+#if defined(MODEL_2432S028R)
+// Touch Calibration Values for 2432S028R (overridable via PlatformIO build flags)
+// These defaults should work for most 2432S028R panels - adjust if touch is off
+#ifndef TOUCH_X_MIN
+#define TOUCH_X_MIN 200
+#endif
+#ifndef TOUCH_X_MAX
+#define TOUCH_X_MAX 3700
+#endif
+#ifndef TOUCH_Y_MIN
+#define TOUCH_Y_MIN 240
+#endif
+#ifndef TOUCH_Y_MAX
+#define TOUCH_Y_MAX 3800
+#endif
+#endif
+
 #if defined(MODEL_JC2432W328C)
 #ifndef CST820_SDA
 #ifdef I2C_SDA
@@ -80,56 +157,20 @@
 #ifndef CST820_INT
 #define CST820_INT 21
 #endif
-#endif // MODEL_JC2432W328C
+#endif
 
-// The BitBank `BBCapTouch` library handles a variety of controllers and
-// provides rotation support via `setOrientation()`. No raw-range macros
-// are required when using that library.
+struct TouchSample
+{
+  bool pressed;
+  int32_t rawX;
+  int32_t rawY;
+  int32_t mappedX;
+  int32_t mappedY;
+};
 
 class TemplateCode
 {
-
 private:
-  // Hardware Configuration
-  // Pins are provided via macros from PlatformIO (see above mapping).
-
-  // Screen Configuration (per touch/display orientation)
-  // LVGL expects width x height.
-#ifndef TFT_ROTATION
-#define TFT_ROTATION 0
-#endif
-
-  // Native panel resolution (ST7789 on CYD): 240x320 (portrait)
-  static constexpr uint16_t PANEL_WIDTH = 240;
-  static constexpr uint16_t PANEL_HEIGHT = 320;
-
-// Derive LVGL resolution from rotation: 0/2 -> portrait, 1/3 -> landscape
-#if (TFT_ROTATION == 0) || (TFT_ROTATION == 2)
-  static constexpr uint16_t SCREEN_WIDTH = PANEL_WIDTH;
-  static constexpr uint16_t SCREEN_HEIGHT = PANEL_HEIGHT;
-#else
-  static constexpr uint16_t SCREEN_WIDTH = PANEL_HEIGHT;
-  static constexpr uint16_t SCREEN_HEIGHT = PANEL_WIDTH;
-#endif
-
-#if defined(MODEL_JC2432W328R)
-// Touch Calibration Values (overridable via PlatformIO build flags)
-// Define TOUCH_X_MIN, TOUCH_X_MAX, TOUCH_Y_MIN, TOUCH_Y_MAX in platformio.ini to customize.
-// Defaults match common JC2432W328R panels.
-#ifndef TOUCH_X_MIN
-#define TOUCH_X_MIN 200
-#endif
-#ifndef TOUCH_X_MAX
-#define TOUCH_X_MAX 3700
-#endif
-#ifndef TOUCH_Y_MIN
-#define TOUCH_Y_MIN 240
-#endif
-#ifndef TOUCH_Y_MAX
-#define TOUCH_Y_MAX 3800
-#endif
-#endif
-
   // Hardware Instances
 #if defined(MODEL_JC2432W328R)
   SPIClass mySpi; // Reference to avoid copy
@@ -137,6 +178,10 @@ private:
 #endif
 #if defined(MODEL_JC2432W328C)
   BBCapTouch ts;
+#endif
+#if defined(MODEL_2432S028R)
+  SPIClass mySpi; // Reference to avoid copy
+  XPT2046_Touchscreen ts;
 #endif
   TFT_eSPI tft;
 
@@ -146,6 +191,8 @@ private:
 
   // Singleton instance
   static TemplateCode *instance;
+
+  TouchCalibration touchCal;
 
   // Private constructor for singleton
   TemplateCode();
@@ -167,6 +214,11 @@ public:
 
   // Main initialization
   bool begin();
+  void applyTouchCalibration(const TouchCalibration &cal);
+  TouchCalibration touchCalibration() const { return touchCal; }
+  bool sampleTouch(TouchSample &sample);
+  bool isResistiveTouch() const;
+  const char *touchTypeName() const;
 
   // LVGL callback handlers
   static void flushDisplay(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
