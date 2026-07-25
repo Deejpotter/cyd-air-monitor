@@ -1,13 +1,14 @@
 #include "WiFiSettingsScreen.h"
 #include "SettingsStore.h"
 #include "WiFiConnectionManager.h"
+#include "UiLayout.h"
 #include <stdio.h>
 
 namespace
 {
-constexpr int SCREEN_W = 320;
-constexpr int SCREEN_H = 240;
-constexpr int HEADER_H = 40;
+constexpr int SCREEN_W = UI_SCREEN_W;
+constexpr int SCREEN_H = UI_SCREEN_H;
+constexpr int HEADER_H = UI_HEADER_H;
 
 lv_obj_t *createHeaderBar(lv_obj_t *parent, const char *title, lv_event_cb_t backCb, void *userData)
 {
@@ -105,6 +106,13 @@ void WiFiSettingsScreen::createUi()
   lv_obj_set_width(statusLabel, SCREEN_W - 24);
   lv_label_set_long_mode(statusLabel, LV_LABEL_LONG_WRAP);
 
+  lv_obj_t *altHint = lv_label_create(content);
+  lv_label_set_text(altHint, "Or use Settings -> Browser Setup from a phone/PC.");
+  lv_obj_set_style_text_color(altHint, lv_color_hex(0x666666), LV_PART_MAIN);
+  lv_obj_set_style_text_font(altHint, &lv_font_montserrat_14, 0);
+  lv_obj_set_width(altHint, SCREEN_W - 24);
+  lv_label_set_long_mode(altHint, LV_LABEL_LONG_WRAP);
+
   lv_obj_t *scanRow = lv_obj_create(content);
   lv_obj_set_size(scanRow, SCREEN_W - 24, 36);
   lv_obj_set_style_bg_opa(scanRow, LV_OPA_TRANSP, LV_PART_MAIN);
@@ -143,7 +151,7 @@ void WiFiSettingsScreen::createUi()
 
   keyboard = lv_keyboard_create(root);
   lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
-  lv_obj_set_size(keyboard, SCREEN_W, 120);
+  lv_obj_set_size(keyboard, SCREEN_W, UI_KEYBOARD_H);
   lv_obj_align(keyboard, LV_ALIGN_BOTTOM_MID, 0, 0);
   lv_keyboard_set_mode(keyboard, LV_KEYBOARD_MODE_TEXT_LOWER);
   lv_obj_add_event_cb(keyboard, onKeyboardEvent, LV_EVENT_ALL, this);

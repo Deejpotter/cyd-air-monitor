@@ -13,6 +13,7 @@ constexpr const char *KEY_X_MAX = "tx_max";
 constexpr const char *KEY_Y_MIN = "ty_min";
 constexpr const char *KEY_Y_MAX = "ty_max";
 constexpr const char *KEY_CAL_SAVED = "cal_ok";
+constexpr const char *KEY_DISP_ROT = "disp_rot";
 constexpr uint8_t SCHEMA_VERSION = 1;
 } // namespace
 
@@ -201,6 +202,28 @@ void SettingsStore::saveTouchCal(const TouchCalibration &cal)
   prefs.end();
   Serial.printf("SettingsStore: saved touch cal X:%d..%d Y:%d..%d\n",
                 cal.xMin, cal.xMax, cal.yMin, cal.yMax);
+}
+
+uint8_t SettingsStore::loadDisplayRotation() const
+{
+  Preferences prefs;
+  if (!openRead(prefs))
+    return 0;
+
+  uint8_t rotation = prefs.getUChar(KEY_DISP_ROT, 0);
+  prefs.end();
+  return rotation & 0x3;
+}
+
+void SettingsStore::saveDisplayRotation(uint8_t rotation)
+{
+  Preferences prefs;
+  if (!openWrite(prefs))
+    return;
+
+  prefs.putUChar(KEY_DISP_ROT, rotation & 0x3);
+  prefs.end();
+  Serial.printf("SettingsStore: saved display rotation %u\n", rotation & 0x3);
 }
 
 void SettingsStore::resetTouchCal()

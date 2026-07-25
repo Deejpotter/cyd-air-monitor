@@ -11,6 +11,9 @@
 
 # Build files
 build/
+docs-site/node_modules/
+docs-site/.vitepress/dist/
+docs-site/.vitepress/cache/
 
 # Environment files
 .env

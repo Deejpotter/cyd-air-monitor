@@ -1,5 +1,7 @@
 # Display and touch configuration
 
+> **Interactive version:** [Board Explorer](https://deejpotter.github.io/cyd-air-monitor/boards/) and [Display & Touch guide](https://deejpotter.github.io/cyd-air-monitor/guide/display-touch) in the docs site (`docs-site/` — run `npm run dev` locally).
+
 CYD boards share the same ST7789 panel size (240×320 native portrait) but differ in
 backlight pin, touch controller, and how the panel/touch are wired. **Display rotation
 and touch rotation are independent** — using the same number for both often causes
@@ -12,6 +14,7 @@ one axis to appear flipped.
 | `2432s028r` | ESP32-2432S028R (dual USB) | XPT2046 SPI | **1** | **0x20** (MV only) | rot **1**, mirror X+Y |
 | `jc2432w328r` | JC2432W328R resistive | XPT2046 (shared SPI) | **3** | — | rot **1**, mirror X+Y |
 | `jc2432w328c` | JC2432W328C capacitive | CST820/CST816 I²C | **1** | — | native portrait → landscape map |
+| `jc4827w543r` | JC4827W543R (Guition 4.3") | XPT2046 SPI | **2** | — | rot **0**, mirror **X** |
 
 Build with the env that matches your hardware:
 

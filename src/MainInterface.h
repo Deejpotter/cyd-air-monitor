@@ -18,6 +18,7 @@ class TemplateCode;
 class WiFiConnectionManager;
 class WiFiSettingsScreen;
 class TouchConfigScreen;
+class WebSetupScreen;
 
 class MainInterface
 {
@@ -27,6 +28,8 @@ public:
 
   void init(SettingsStore *store, TemplateCode *display, WiFiConnectionManager *wifi);
   void update();
+  void refreshFromSettings();
+  void setWebAccessHint(const char *hint);
 
   void setTemperature(float tempC);
   void setHumidity(float humidity);
@@ -37,6 +40,7 @@ private:
     Dashboard,
     SettingsMenu,
     WiFi,
+    WebSetup,
     Touch
   };
 
@@ -52,8 +56,12 @@ private:
   lv_obj_t *tempLabel;
   lv_obj_t *humidityLabel;
   lv_obj_t *wifiStatusLabel;
+  lv_obj_t *webHintLabel;
+
+  lv_obj_t *rotationLabel;
 
   WiFiSettingsScreen *wifiScreen;
+  WebSetupScreen *webSetupScreen;
   TouchConfigScreen *touchScreen;
 
   void createDashboard();
@@ -63,8 +71,12 @@ private:
 
   static void onSettingsBtnClicked(lv_event_t *e);
   static void onMenuWifiClicked(lv_event_t *e);
+  static void onMenuWebSetupClicked(lv_event_t *e);
   static void onMenuTouchClicked(lv_event_t *e);
+  static void onMenuRotateClicked(lv_event_t *e);
   static void onMenuBackClicked(lv_event_t *e);
+
+  void updateRotationLabel();
 };
 
 #endif // MAIN_INTERFACE_H

@@ -2,15 +2,19 @@
 #include "SettingsStore.h"
 #include "TemplateCode.h"
 #include "TouchConfigScreen.h"
+#include "WebSetupScreen.h"
 #include "WiFiConnectionManager.h"
 #include "WiFiSettingsScreen.h"
 #include <stdio.h>
 
+#include "DisplayConfig.h"
+#include "UiLayout.h"
+
 namespace
 {
-constexpr int SCREEN_W = 320;
-constexpr int SCREEN_H = 240;
-constexpr int HEADER_H = 40;
+constexpr int SCREEN_W = UI_SCREEN_W;
+constexpr int SCREEN_H = UI_SCREEN_H;
+constexpr int HEADER_H = UI_HEADER_H;
 } // namespace
 
 MainInterface::MainInterface()
@@ -18,13 +22,16 @@ MainInterface::MainInterface()
       activeScreen(ActiveScreen::Dashboard), dashboardScreen(nullptr),
       settingsMenuScreen(nullptr), headerContainer(nullptr), headerLabel(nullptr),
       tempLabel(nullptr), humidityLabel(nullptr), wifiStatusLabel(nullptr),
-      wifiScreen(nullptr), touchScreen(nullptr)
+      webHintLabel(nullptr),
+      rotationLabel(nullptr),
+      wifiScreen(nullptr), webSetupScreen(nullptr), touchScreen(nullptr)
 {
 }
 
 MainInterface::~MainInterface()
 {
   delete wifiScreen;
+  delete webSetupScreen;
   delete touchScreen;
 }
 
@@ -35,15 +42,21 @@ void MainInterface::init(SettingsStore *store, TemplateCode *displayCode, WiFiCo
   wifi = wifiMgr;
 
   if (display && settings)
+  {
     display->applyTouchCalibration(settings->loadTouchCal());
+    display->setDisplayRotation(settings->loadDisplayRotation());
+  }
 
   wifiScreen = new WiFiSettingsScreen();
+  webSetupScreen = new WebSetupScreen();
   touchScreen = new TouchConfigScreen();
 
   wifiScreen->init(settings, wifi);
+  webSetupScreen->init(wifi);
   touchScreen->init(settings, display);
 
   wifiScreen->setBackCallback([this]() { showScreen(ActiveScreen::SettingsMenu); });
+  webSetupScreen->setBackCallback([this]() { showScreen(ActiveScreen::SettingsMenu); });
   touchScreen->setBackCallback([this]() { showScreen(ActiveScreen::SettingsMenu); });
 
   if (wifi)
@@ -133,7 +146,13 @@ void MainInterface::createDashboard()
   wifiStatusLabel = lv_label_create(dashboardScreen);
   lv_obj_set_style_text_color(wifiStatusLabel, lv_color_hex(0x666666), LV_PART_MAIN);
   lv_label_set_text(wifiStatusLabel, wifi ? wifi->statusText().c_str() : "WiFi: --");
-  lv_obj_align(wifiStatusLabel, LV_ALIGN_BOTTOM_MID, 0, -8);
+  lv_obj_align(wifiStatusLabel, LV_ALIGN_BOTTOM_MID, 0, -24);
+
+  webHintLabel = lv_label_create(dashboardScreen);
+  lv_obj_set_style_text_color(webHintLabel, lv_color_hex(0x888888), LV_PART_MAIN);
+  lv_obj_set_style_text_font(webHintLabel, &lv_font_montserrat_14, 0);
+  lv_label_set_text(webHintLabel, "");
+  lv_obj_align(webHintLabel, LV_ALIGN_BOTTOM_MID, 0, -6);
 }
 
 void MainInterface::createSettingsMenu()
@@ -162,12 +181,30 @@ void MainInterface::createSettingsMenu()
   lv_label_set_text(wifiLbl, LV_SYMBOL_WIFI "  WiFi");
   lv_obj_center(wifiLbl);
 
+  lv_obj_t *webBtn = lv_btn_create(content);
+  lv_obj_set_size(webBtn, SCREEN_W - 32, 40);
+  lv_obj_add_event_cb(webBtn, onMenuWebSetupClicked, LV_EVENT_CLICKED, this);
+  lv_obj_t *webLbl = lv_label_create(webBtn);
+  lv_label_set_text(webLbl, LV_SYMBOL_HOME "  Browser Setup");
+  lv_obj_center(webLbl);
+
   lv_obj_t *touchBtn = lv_btn_create(content);
   lv_obj_set_size(touchBtn, SCREEN_W - 32, 40);
   lv_obj_add_event_cb(touchBtn, onMenuTouchClicked, LV_EVENT_CLICKED, this);
   lv_obj_t *touchLbl = lv_label_create(touchBtn);
   lv_label_set_text(touchLbl, LV_SYMBOL_EDIT "  Touch Test");
   lv_obj_center(touchLbl);
+
+  lv_obj_t *rotateBtn = lv_btn_create(content);
+  lv_obj_set_size(rotateBtn, SCREEN_W - 32, 40);
+  lv_obj_add_event_cb(rotateBtn, onMenuRotateClicked, LV_EVENT_CLICKED, this);
+  lv_obj_t *rotateLbl = lv_label_create(rotateBtn);
+  lv_label_set_text(rotateLbl, LV_SYMBOL_REFRESH "  Rotate Display");
+  lv_obj_center(rotateLbl);
+
+  rotationLabel = lv_label_create(content);
+  lv_obj_set_style_text_color(rotationLabel, lv_color_hex(0x888888), LV_PART_MAIN);
+  updateRotationLabel();
 
   lv_obj_t *backBtn = lv_btn_create(content);
   lv_obj_set_size(backBtn, SCREEN_W - 32, 36);
@@ -191,16 +228,36 @@ void MainInterface::showScreen(ActiveScreen screen)
   case ActiveScreen::WiFi:
     wifiScreen->show();
     break;
+  case ActiveScreen::WebSetup:
+    webSetupScreen->show();
+    break;
   case ActiveScreen::Touch:
     touchScreen->show();
     break;
   }
 }
 
+void MainInterface::refreshFromSettings()
+{
+  updateRotationLabel();
+}
+
+void MainInterface::setWebAccessHint(const char *hint)
+{
+  if (!webHintLabel)
+    return;
+  if (hint && hint[0])
+    lv_label_set_text(webHintLabel, hint);
+  else
+    lv_label_set_text(webHintLabel, "");
+}
+
 void MainInterface::update()
 {
   if (activeScreen == ActiveScreen::WiFi)
     wifiScreen->update();
+  else if (activeScreen == ActiveScreen::WebSetup)
+    webSetupScreen->update();
   else if (activeScreen == ActiveScreen::Touch)
     touchScreen->update();
 
@@ -240,11 +297,40 @@ void MainInterface::onMenuWifiClicked(lv_event_t *e)
     self->showScreen(ActiveScreen::WiFi);
 }
 
+void MainInterface::onMenuWebSetupClicked(lv_event_t *e)
+{
+  auto *self = static_cast<MainInterface *>(lv_event_get_user_data(e));
+  if (self)
+    self->showScreen(ActiveScreen::WebSetup);
+}
+
 void MainInterface::onMenuTouchClicked(lv_event_t *e)
 {
   auto *self = static_cast<MainInterface *>(lv_event_get_user_data(e));
   if (self)
     self->showScreen(ActiveScreen::Touch);
+}
+
+void MainInterface::updateRotationLabel()
+{
+  if (!rotationLabel || !display)
+    return;
+
+  char buf[48];
+  snprintf(buf, sizeof(buf), "Rotation: %s", display->displayRotationLabel());
+  lv_label_set_text(rotationLabel, buf);
+}
+
+void MainInterface::onMenuRotateClicked(lv_event_t *e)
+{
+  auto *self = static_cast<MainInterface *>(lv_event_get_user_data(e));
+  if (!self || !self->display || !self->settings)
+    return;
+
+  uint8_t next = (self->display->displayRotation() + 1) & 0x3;
+  self->display->setDisplayRotation(next);
+  self->settings->saveDisplayRotation(next);
+  self->updateRotationLabel();
 }
 
 void MainInterface::onMenuBackClicked(lv_event_t *e)

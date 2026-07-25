@@ -11,8 +11,11 @@ This project is based on the [cyd-lvgl-template](https://github.com/Deejpotter/c
 | `2432s028r` (default) | ESP32-2432S028R (original CYD) | Resistive (XPT2046) | GPIO 27 |
 | `jc2432w328r` | JC2432W328R | Resistive (XPT2046) | GPIO 21 |
 | `jc2432w328c` | JC2432W328C | Capacitive (CST820) | GPIO 22 |
+| `jc4827w543r` | JC4827W543R (Guition 4.3") | Resistive (XPT2046) | GPIO 5 |
 
-All supported boards use a **2.8" ST7789** display at **320×240**. Pin mappings and touch type are defined per environment in `platformio.ini`.
+Most CYD boards use a **2.8" ST7789** at **320×240**. The JC4827W543R uses a **4.3" NV3041A** at **480×272** (ESP32-S3, Arduino_GFX). Pin mappings and touch type are defined per environment in `platformio.ini`.
+
+**Interactive docs:** [Board Explorer & guides](docs-site/README.md) — includes [gotchas](/cyd-air-monitor/boards/gotchas) and [references](/cyd-air-monitor/boards/references). Run `cd docs-site && npm install && npm run dev`, or view on [GitHub Pages](https://deejpotter.github.io/cyd-air-monitor/) after deploy.
 
 Connect the DHT11 data pin to the GPIO listed above (VCC to 3.3 V, GND to GND).
 
@@ -41,6 +44,7 @@ On first build, `scripts/copy_template.py` copies display config files from `tem
 Tap the **gear icon** on the dashboard to open Settings:
 
 - **WiFi** — scans for nearby networks, pick an SSID from the dropdown, enter password, and connect. Credentials are saved to NVS and the device auto-reconnects on boot.
+- **Web dashboard** — when WiFi is connected, open **http://cydmon.local** in a browser on the same network for live readings and settings (WiFi, display rotation, touch cal). Same NVS as the touchscreen.
 - **Touch Test** — live touch coordinates and a touch dot. On resistive boards, min/max calibration can be adjusted and saved to NVS.
 
 Settings persist across reboots in ESP32 NVS (Arduino `Preferences` library, namespace `cydmon`). Use **Forget WiFi** on the WiFi screen to clear saved credentials.
@@ -55,6 +59,7 @@ src/
 ├── WiFiSettingsScreen.{h,cpp}  # WiFi scan, SSID picker, connect
 ├── TouchConfigScreen.{h,cpp}   # Touch test and resistive calibration
 ├── WiFiConnectionManager.{h,cpp}
+├── WebServerManager.{h,cpp}    # Local HTTP UI + JSON API (cydmon.local)
 ├── SettingsStore.{h,cpp}       # NVS persistence (WiFi, touch cal)
 ├── SensorManager.{h,cpp}       # DHT11 polling and change callbacks
 ├── PeriodicScheduler.*         # Non-blocking task scheduler
@@ -72,6 +77,7 @@ Set the environment to match your hardware:
 ```bash
 pio run -e jc2432w328r    # resistive-touch JC2432W328R
 pio run -e jc2432w328c    # capacitive-touch JC2432W328C
+pio run -e jc4827w543r    # Guition 4.3" ESP32-S3 JC4827W543R
 pio run -e 2432s028r      # original ESP32-2432S028R CYD
 ```
 

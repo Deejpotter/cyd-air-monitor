@@ -4,6 +4,7 @@
 #include <functional>
 #include <vector>
 
+class DNSServer;
 class SettingsStore;
 
 enum class WiFiConnStatus
@@ -28,6 +29,9 @@ public:
   using StatusCallback = std::function<void(WiFiConnStatus status, const String &detail)>;
   using ScanCallback = std::function<void()>;
 
+  static constexpr const char *SETUP_AP_SSID = "CYD-Setup";
+  static constexpr const char *SETUP_PORTAL_URL = "http://192.168.4.1";
+
   void begin(SettingsStore *store);
   void update();
 
@@ -45,6 +49,11 @@ public:
   String statusText() const;
   String ipAddress() const;
 
+  /** Soft AP + captive DNS for browser-based WiFi setup at 192.168.4.1 */
+  bool isSetupPortalActive() const { return setupPortalActive; }
+  void startSetupPortal();
+  void stopSetupPortal();
+
   void onStatusChange(StatusCallback cb);
   void onScanComplete(ScanCallback cb);
 
@@ -61,6 +70,8 @@ private:
   String pendingPass;
   bool pendingConnect;
   bool pendingScan;
+  bool setupPortalActive;
+  DNSServer *dnsServer;
 
   void setStatus(WiFiConnStatus next, const String &detail = "");
   void finishScan(int networkCount);

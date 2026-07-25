@@ -48,6 +48,17 @@
 #define TFT_INVERT_DISPLAY 0
 #endif
 
+#ifndef NV3041A_MADCTL
+#define NV3041A_MADCTL 0x36
+#endif
+
+#if defined(MODEL_JC4827W543R)
+// Guition JC4827W543R — 4.3" NV3041A, native landscape 480x272
+static constexpr uint16_t PANEL_WIDTH = 480;
+static constexpr uint16_t PANEL_HEIGHT = 272;
+static constexpr uint16_t SCREEN_WIDTH = 480;
+static constexpr uint16_t SCREEN_HEIGHT = 272;
+#else
 // Native panel resolution (ST7789 CYD panels)
 static constexpr uint16_t PANEL_WIDTH = 240;
 static constexpr uint16_t PANEL_HEIGHT = 320;
@@ -58,4 +69,5 @@ static constexpr uint16_t SCREEN_HEIGHT = PANEL_HEIGHT;
 #else
 static constexpr uint16_t SCREEN_WIDTH = PANEL_HEIGHT;
 static constexpr uint16_t SCREEN_HEIGHT = PANEL_WIDTH;
+#endif
 #endif

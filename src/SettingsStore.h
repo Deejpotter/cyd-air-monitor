@@ -37,6 +37,10 @@ public:
   void resetTouchCal();
   TouchCalibration defaultTouchCal() const;
 
+  /** LVGL display rotation index: 0=0°, 1=90°, 2=180°, 3=270°. */
+  uint8_t loadDisplayRotation() const;
+  void saveDisplayRotation(uint8_t rotation);
+
   void clearAll();
 
 private:

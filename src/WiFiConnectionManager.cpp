@@ -1,5 +1,6 @@
 #include "WiFiConnectionManager.h"
 #include "SettingsStore.h"
+#include <DNSServer.h>
 #include <WiFi.h>
 
 namespace
@@ -15,16 +16,23 @@ void WiFiConnectionManager::begin(SettingsStore *store)
   connectStartedMs = 0;
   pendingConnect = false;
   pendingScan = false;
+  setupPortalActive = false;
+  dnsServer = new DNSServer();
 
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
 
   if (settings && settings->loadWifiAutoConnect() && settings->hasWifi())
+  {
     connectSaved();
+  }
 }
 
 void WiFiConnectionManager::update()
 {
+  if (setupPortalActive && dnsServer)
+    dnsServer->processNextRequest();
+
   if (pendingScan)
   {
     pendingScan = false;
@@ -53,6 +61,8 @@ void WiFiConnectionManager::update()
   if (pendingConnect)
   {
     pendingConnect = false;
+    if (setupPortalActive)
+      stopSetupPortal();
     WiFi.disconnect(true);
     delay(100);
     WiFi.begin(pendingSsid.c_str(), pendingPass.c_str());
@@ -65,6 +75,8 @@ void WiFiConnectionManager::update()
     wl_status_t wl = WiFi.status();
     if (wl == WL_CONNECTED)
     {
+      if (setupPortalActive)
+        stopSetupPortal();
       setStatus(WiFiConnStatus::Connected, WiFi.localIP().toString());
       return;
     }
@@ -76,7 +88,9 @@ void WiFiConnectionManager::update()
     }
 
     if (wl == WL_CONNECT_FAILED || wl == WL_NO_SSID_AVAIL)
+    {
       setStatus(WiFiConnStatus::Failed, "Connect failed");
+    }
     return;
   }
 
@@ -88,6 +102,35 @@ void WiFiConnectionManager::update()
 
   if (connStatus == WiFiConnStatus::Disconnected && WiFi.status() == WL_CONNECTED)
     setStatus(WiFiConnStatus::Connected, WiFi.localIP().toString());
+}
+
+void WiFiConnectionManager::startSetupPortal()
+{
+  if (setupPortalActive)
+    return;
+
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  WiFi.softAP(SETUP_AP_SSID);
+  if (dnsServer)
+    dnsServer->start(53, "*", IPAddress(192, 168, 4, 1));
+
+  setupPortalActive = true;
+  setStatus(WiFiConnStatus::Disconnected, "Browser setup active");
+  Serial.printf("Setup portal: join \"%s\" then open %s\n", SETUP_AP_SSID, SETUP_PORTAL_URL);
+}
+
+void WiFiConnectionManager::stopSetupPortal()
+{
+  if (!setupPortalActive)
+    return;
+
+  if (dnsServer)
+    dnsServer->stop();
+  WiFi.softAPdisconnect(true);
+  setupPortalActive = false;
+  WiFi.mode(WIFI_STA);
+  Serial.println("Setup portal stopped");
 }
 
 void WiFiConnectionManager::startScan()
@@ -169,6 +212,9 @@ void WiFiConnectionManager::disconnect()
 
 String WiFiConnectionManager::statusText() const
 {
+  if (setupPortalActive && connStatus != WiFiConnStatus::Connected)
+    return "Setup: join CYD-Setup";
+
   switch (connStatus)
   {
   case WiFiConnStatus::Disconnected:
@@ -185,6 +231,8 @@ String WiFiConnectionManager::statusText() const
 
 String WiFiConnectionManager::ipAddress() const
 {
+  if (setupPortalActive && WiFi.status() != WL_CONNECTED)
+    return "192.168.4.1";
   if (WiFi.status() == WL_CONNECTED)
     return WiFi.localIP().toString();
   return "";

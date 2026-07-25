@@ -10,6 +10,10 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <lvgl.h>
+#if defined(MODEL_JC4827W543R)
+#include <Arduino_GFX_Library.h>
+#include <XPT2046_Touchscreen.h>
+#else
 #include <TFT_eSPI.h>
 #if defined(MODEL_JC2432W328R)
 #include <XPT2046_Touchscreen.h>
@@ -17,6 +21,7 @@
 #include <bb_captouch.h>
 #elif defined(MODEL_2432S028R)
 #include <XPT2046_Touchscreen.h>
+#endif
 #endif
 #include "RGBledDriver.h"
 #include "DisplayConfig.h"
@@ -100,6 +105,39 @@
 #endif
 #endif // MODEL_2432S028R
 
+#if defined(MODEL_JC4827W543R)
+#ifndef XPT2046_CS
+#define XPT2046_CS TOUCH_CS
+#endif
+#ifndef XPT2046_IRQ
+#define XPT2046_IRQ TOUCH_IRQ
+#endif
+#ifndef XPT2046_CLK
+#define XPT2046_CLK TOUCH_CLK
+#endif
+#ifndef XPT2046_MISO
+#define XPT2046_MISO TOUCH_MISO
+#endif
+#ifndef XPT2046_MOSI
+#define XPT2046_MOSI TOUCH_MOSI
+#endif
+#ifndef GFX_BL
+#define GFX_BL 1
+#endif
+#ifndef TOUCH_X_MIN
+#define TOUCH_X_MIN 350
+#endif
+#ifndef TOUCH_X_MAX
+#define TOUCH_X_MAX 3500
+#endif
+#ifndef TOUCH_Y_MIN
+#define TOUCH_Y_MIN 300
+#endif
+#ifndef TOUCH_Y_MAX
+#define TOUCH_Y_MAX 3800
+#endif
+#endif // MODEL_JC4827W543R
+
 // Pin mapping via PlatformIO build flags (prefer PIO-defined macros)
 #if defined(MODEL_JC2432W328R)
 // Touch Calibration Values (overridable via PlatformIO build flags)
@@ -172,18 +210,26 @@ class TemplateCode
 {
 private:
   // Hardware Instances
-#if defined(MODEL_JC2432W328R)
-  SPIClass mySpi; // Reference to avoid copy
+#if defined(MODEL_JC4827W543R)
+  Arduino_DataBus *displayBus;
+  Arduino_GFX *displayPanel;
+  Arduino_GFX *gfx;
+  SPIClass touchSpi;
   XPT2046_Touchscreen ts;
-#endif
-#if defined(MODEL_JC2432W328C)
-  BBCapTouch ts;
-#endif
-#if defined(MODEL_2432S028R)
-  SPIClass mySpi; // Reference to avoid copy
+#elif defined(MODEL_JC2432W328R)
+  SPIClass mySpi;
   XPT2046_Touchscreen ts;
-#endif
   TFT_eSPI tft;
+#elif defined(MODEL_JC2432W328C)
+  BBCapTouch ts;
+  TFT_eSPI tft;
+#elif defined(MODEL_2432S028R)
+  SPIClass mySpi;
+  XPT2046_Touchscreen ts;
+  TFT_eSPI tft;
+#else
+  TFT_eSPI tft;
+#endif
 
   // LVGL Buffer
   static lv_disp_draw_buf_t draw_buf;
@@ -220,7 +266,13 @@ public:
   bool isResistiveTouch() const;
   const char *touchTypeName() const;
 
+  /** Runtime LVGL rotation: 0=0°, 1=90°, 2=180°, 3=270°. Touch follows via LVGL. */
+  void setDisplayRotation(uint8_t rotation);
+  uint8_t displayRotation() const;
+  const char *displayRotationLabel() const;
+
   // LVGL callback handlers
+
   static void flushDisplay(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p);
   // Overload for resistive/capacitive handled in .cpp
 

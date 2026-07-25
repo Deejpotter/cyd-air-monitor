@@ -1,13 +1,14 @@
 #include "TouchConfigScreen.h"
 #include "SettingsStore.h"
 #include "TemplateCode.h"
+#include "UiLayout.h"
 #include <stdio.h>
 
 namespace
 {
-constexpr int SCREEN_W = 320;
-constexpr int SCREEN_H = 240;
-constexpr int HEADER_H = 40;
+constexpr int SCREEN_W = UI_SCREEN_W;
+constexpr int SCREEN_H = UI_SCREEN_H;
+constexpr int HEADER_H = UI_HEADER_H;
 
 enum CalField
 {
